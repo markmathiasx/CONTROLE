@@ -35,6 +35,9 @@ export type RecurrenceFrequency = (typeof recurrenceFrequencies)[number];
 export const storageModes = ["local", "supabase"] as const;
 export type StorageMode = (typeof storageModes)[number];
 
+export const workspaceMemberRoles = ["owner", "member"] as const;
+export type WorkspaceMemberRole = (typeof workspaceMemberRoles)[number];
+
 export const entryKinds = ["expense", "income"] as const;
 export type EntryKind = (typeof entryKinds)[number];
 
@@ -101,12 +104,16 @@ export interface BaseEntity {
   createdAt: string;
   updatedAt: string;
   archivedAt?: string | null;
+  createdByUserId?: string | null;
+  updatedByUserId?: string | null;
 }
 
 export interface User extends BaseEntity {
-  name: string;
-  email?: string | null;
-  role: "owner" | "member";
+  username: string;
+  displayName: string;
+  email: string;
+  avatarUrl?: string | null;
+  role: WorkspaceMemberRole;
 }
 
 export interface Workspace extends BaseEntity {
@@ -115,11 +122,28 @@ export interface Workspace extends BaseEntity {
   currency: "BRL";
   timezone: string;
   ownerUserId: string;
+  isPersonal?: boolean | null;
   branding: {
     appName: string;
     accent: string;
     logoMode: "glyph" | "wordmark";
   };
+}
+
+export interface WorkspaceMember extends BaseEntity {
+  workspaceId: string;
+  userId: string;
+  role: WorkspaceMemberRole;
+}
+
+export interface UserSettingsRecord extends BaseEntity {
+  userId: string;
+  activeWorkspaceId?: string | null;
+  theme: ThemeMode;
+  onboardingCompleted: boolean;
+  localImportDecision?: "merged" | "skipped" | null;
+  importedFromLocalAt?: string | null;
+  lastLocalMergeHash?: string | null;
 }
 
 export interface CostCenter extends BaseEntity {
@@ -269,6 +293,7 @@ export interface MaintenanceLog extends BaseEntity {
   notes?: string | null;
   recurringMonths?: number | null;
   recurringKm?: number | null;
+  paymentMethod?: PaymentMethod | null;
   transactionId?: string | null;
 }
 
@@ -324,6 +349,8 @@ export interface StockMovement extends BaseEntity {
   centerId: string;
   itemKind: StockItemKind;
   itemId: string;
+  itemName?: string | null;
+  itemCategory?: string | null;
   movementKind: StockMovementKind;
   quantity: number;
   unitCost: number;
@@ -339,6 +366,7 @@ export interface ProductionMaterialUsage extends BaseEntity {
   itemKind: StockItemKind;
   itemId: string;
   itemName: string;
+  itemCategory?: string | null;
   quantity: number;
   wasteQuantity: number;
   unitCost: number;
@@ -365,7 +393,10 @@ export interface ProductionJob extends BaseEntity {
   materialCost: number;
   wasteCost: number;
   supplyCost: number;
+  paintCost?: number;
+  otherSupplyCost?: number;
   finishingCost: number;
+  fixedCostApplied?: number;
   totalCost: number;
   unitCost: number;
   grossProfit: number;
@@ -416,6 +447,10 @@ export interface WorkspaceMeta {
   seededAt: string;
   updatedAt: string;
   lastSyncedAt?: string | null;
+  importedFromLocalAt?: string | null;
+  lastMergedAt?: string | null;
+  lastMergedHash?: string | null;
+  migrationOrigin?: string | null;
   dirty: boolean;
   source: "seed" | "local" | "remote";
   storageMode: StorageMode;
@@ -474,6 +509,7 @@ export interface RuntimeConfig {
   storageMode: StorageMode;
   hasSupabase: boolean;
   hasPinLock: boolean;
+  hasUsernameAuth: boolean;
 }
 
 export interface SyncPayload {

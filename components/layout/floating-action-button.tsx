@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Box, ClipboardList, Fuel, PackagePlus, Plus, Printer, Sparkles, Wrench } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,8 +20,13 @@ const quickActions = [
 ] as const;
 
 export function FloatingActionButton() {
+  const pathname = usePathname();
   const setQuickAddOpen = useFinanceStore((state) => state.setQuickAddOpen);
   const [speedDialOpen, setSpeedDialOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    setSpeedDialOpen(false);
+  }, [pathname]);
 
   return (
     <div className="fixed bottom-24 right-5 z-40 flex flex-col items-end gap-2 sm:right-8">

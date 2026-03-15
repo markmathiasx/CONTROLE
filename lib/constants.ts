@@ -9,9 +9,9 @@ import type {
   ThemeMode,
 } from "@/types/domain";
 
-export const appName = "ControLê";
-export const schemaVersion = 2;
-export const appVersion = "0.2.0";
+export const appName = "Controle Financeiro MMSVH";
+export const schemaVersion = 3;
+export const appVersion = "0.3.0";
 
 export const paymentMethodLabels: Record<PaymentMethod, string> = {
   cash: "Dinheiro",

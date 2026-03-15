@@ -23,16 +23,18 @@ export function TransactionList({
   snapshot,
   monthKey,
   search,
+  entries: providedEntries,
 }: {
   snapshot: WorkspaceSnapshot;
   monthKey?: string;
   search?: string;
+  entries?: ReturnType<typeof listUnifiedEntries>;
 }) {
   const deleteEntry = useFinanceStore((state) => state.deleteEntry);
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editingKind, setEditingKind] = React.useState<"expense" | "income">("expense");
 
-  const entries = listUnifiedEntries(snapshot, monthKey).filter((entry) =>
+  const entries = (providedEntries ?? listUnifiedEntries(snapshot, monthKey)).filter((entry) =>
     search
       ? `${entry.description} ${entry.date}`.toLowerCase().includes(search.toLowerCase())
       : true,

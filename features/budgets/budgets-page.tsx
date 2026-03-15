@@ -1,9 +1,12 @@
 "use client";
 
 import * as React from "react";
+import { PiggyBank } from "lucide-react";
 
 import { BudgetProgressCard } from "@/components/shared/budget-progress-card";
+import { EmptyState } from "@/components/shared/empty-state";
 import { MonthSwitcher } from "@/components/shared/month-switcher";
+import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,7 +33,7 @@ export function BudgetsPage() {
   }, [selectedMonth]);
 
   if (!initialized || !snapshot) {
-    return null;
+    return <PageSkeleton cards={3} rows={2} />;
   }
 
   const budgetUsage = getBudgetUsage(snapshot, selectedMonth);
@@ -85,18 +88,31 @@ export function BudgetsPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {budgetUsage.map((item) => (
-          <BudgetProgressCard
-            key={item.budget.id}
-            title={item.category?.name ?? "Categoria"}
-            spent={item.spent}
-            limit={item.budget.limit}
-            percentage={item.percentage}
-            status={item.status}
-          />
-        ))}
-      </div>
+      {budgetUsage.length ? (
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {budgetUsage.map((item) => (
+            <BudgetProgressCard
+              key={item.budget.id}
+              title={item.category?.name ?? "Categoria"}
+              spent={item.spent}
+              limit={item.budget.limit}
+              percentage={item.percentage}
+              status={item.status}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={PiggyBank}
+          title="Nenhum orçamento criado"
+          description="Defina um limite para as categorias que mais pesam no mês e acompanhe tudo em tempo real."
+          action={
+            <Button type="button" onClick={() => setForm((current) => ({ ...current, month: selectedMonth }))}>
+              Criar primeiro orçamento
+            </Button>
+          }
+        />
+      )}
     </div>
   );
 }

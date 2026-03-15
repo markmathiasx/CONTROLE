@@ -5,6 +5,8 @@ import type {
   MaintenanceCategory,
   PaymentMethod,
   RecurrenceFrequency,
+  StockItemKind,
+  StockMovementKind,
   StoreOrderStatus,
   SupplyUnit,
   ThemeMode,
@@ -124,6 +126,44 @@ export interface SupplyItemFormValues {
   totalCost: number;
   purchaseDate: string;
   notes?: string;
+}
+
+export interface StockAdjustmentFormValues {
+  itemKind: StockItemKind;
+  itemId: string;
+  quantityDelta: number;
+  occurredAt: string;
+  notes?: string;
+}
+
+export interface FuelFilters {
+  month: string;
+  paymentMethod: PaymentMethod | "all";
+  station: string;
+}
+
+export interface MaintenanceFilters {
+  month: string;
+  category: MaintenanceCategory | "all";
+  reminderStatus: "all" | "overdue" | "upcoming" | "none";
+}
+
+export interface StockMovementFilters {
+  month: string;
+  itemKind: StockItemKind | "all";
+  movementKind: StockMovementKind | "all";
+}
+
+export interface ProductionFilters {
+  month: string;
+  status: ProductionJobFormValues["status"] | "all";
+  profitability: "all" | "profit" | "loss";
+}
+
+export interface OrderFilters {
+  month: string;
+  status: StoreOrderStatus | "all";
+  query: string;
 }
 
 export interface ProductionMaterialInput {

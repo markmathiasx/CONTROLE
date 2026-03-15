@@ -31,13 +31,21 @@ export function BottomNavigation() {
   const moreMenuOpen = useFinanceStore((state) => state.moreMenuOpen);
   const setMoreMenuOpen = useFinanceStore((state) => state.setMoreMenuOpen);
 
+  function isActivePath(href: string) {
+    if (href === "/") {
+      return pathname === href;
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
   return (
     <>
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/8 bg-black/70 px-4 py-3 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-md items-center justify-between gap-2">
           {primaryItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active = isActivePath(item.href);
             return (
               <Link
                 key={item.href}
@@ -58,7 +66,7 @@ export function BottomNavigation() {
             onClick={() => setMoreMenuOpen(true)}
             className={cn(
               "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition",
-              secondaryItems.some((item) => pathname === item.href)
+              secondaryItems.some((item) => isActivePath(item.href))
                 ? "bg-emerald-400/14 text-emerald-200"
                 : "text-zinc-500",
             )}

@@ -48,7 +48,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`${plusJakarta.variable} ${spaceGrotesk.variable} min-h-screen bg-background font-sans text-foreground antialiased`}>
         <Providers runtimeConfig={runtimeConfig}>
-          <AppShell>{children}</AppShell>
+          <AppShell runtimeConfig={runtimeConfig}>{children}</AppShell>
         </Providers>
       </body>
     </html>

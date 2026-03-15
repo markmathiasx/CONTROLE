@@ -26,6 +26,19 @@ import type {
 } from "@/types/domain";
 import { generateInstallmentsForTransaction } from "@/utils/installments";
 
+type SeedContext =
+  | "local"
+  | "supabase"
+  | {
+      storageMode: "local" | "supabase";
+      workspaceId?: string;
+      workspaceName?: string;
+      userId?: string;
+      username?: string;
+      displayName?: string;
+      email?: string;
+    };
+
 function timestamp(days = 0) {
   return format(addDays(new Date(), days), "yyyy-MM-dd'T'HH:mm:ssxxx");
 }
@@ -34,10 +47,16 @@ function round(value: number) {
   return roundCurrency(value);
 }
 
-export function createSeedSnapshot(storageMode: "local" | "supabase"): WorkspaceSnapshot {
+export function createSeedSnapshot(input: SeedContext): WorkspaceSnapshot {
+  const context = typeof input === "string" ? { storageMode: input } : input;
   const now = timestamp();
-  const workspaceId = "workspace_home";
-  const userId = "user_owner";
+  const storageMode = context.storageMode;
+  const workspaceId = context.workspaceId ?? "workspace_home";
+  const workspaceName = context.workspaceName ?? appName;
+  const userId = context.userId ?? "user_owner";
+  const username = context.username ?? "mark";
+  const displayName = context.displayName ?? "Mark";
+  const email = context.email ?? "mark@example.com";
   const monthStart = startOfMonth(new Date());
   const currentMonth = format(monthStart, "yyyy-MM");
   const centerIds = {
@@ -969,20 +988,24 @@ export function createSeedSnapshot(storageMode: "local" | "supabase"): Workspace
     version: 1,
     user: {
       id: userId,
-      name: "Mark",
+      username,
+      displayName,
+      email,
+      avatarUrl: null,
       role: "owner",
       createdAt: now,
       updatedAt: now,
     },
     workspace: {
       id: workspaceId,
-      name: appName,
-      slug: slugify(appName),
+      name: workspaceName,
+      slug: slugify(workspaceName),
       currency: "BRL",
       timezone: "America/Sao_Paulo",
       ownerUserId: userId,
+      isPersonal: true,
       branding: {
-        appName,
+        appName: workspaceName,
         accent: "#10b981",
         logoMode: "glyph",
       },
@@ -1012,6 +1035,10 @@ export function createSeedSnapshot(storageMode: "local" | "supabase"): Workspace
       schemaVersion,
       seededAt: now,
       updatedAt: now,
+      importedFromLocalAt: null,
+      lastMergedAt: null,
+      lastMergedHash: null,
+      migrationOrigin: null,
       dirty: false,
       source: "seed",
       storageMode,

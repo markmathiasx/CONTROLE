@@ -1,6 +1,6 @@
 {
   "name": "controle-financeiro-pwa",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
@@ -30,6 +30,7 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

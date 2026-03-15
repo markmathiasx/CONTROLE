@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import { createSeedSnapshot } from "@/utils/seed";
-import { getBudgetUsage, getDashboardSummary, getMotoDashboardSummary, getProjectionMonths, getStoreDashboardSummary } from "@/utils/finance";
+import {
+  getBudgetUsage,
+  getDashboardSummary,
+  getHubExecutiveSummary,
+  getMotoDashboardSummary,
+  getMotoMonthlyComparison,
+  getProjectionMonths,
+  getStoreDashboardSummary,
+  getStoreMonthlyTrend,
+} from "@/utils/finance";
 
 describe("finance selectors", () => {
   it("calcula o resumo principal do dashboard", () => {
@@ -42,5 +51,28 @@ describe("finance selectors", () => {
     expect(moto.monthlyCost).toBeGreaterThan(0);
     expect(store.revenue).toBeGreaterThan(0);
     expect(store.criticalStockCount).toBeGreaterThanOrEqual(0);
+  });
+
+  it("monta uma visao executiva do hub com comparativos e pulso", () => {
+    const snapshot = createSeedSnapshot("local");
+    const month = snapshot.budgets[0].month;
+    const hub = getHubExecutiveSummary(snapshot, month);
+
+    expect(hub.finance.invoiceTotal).toBeGreaterThan(0);
+    expect(hub.moto.monthlyCost).toBeGreaterThan(0);
+    expect(hub.store.revenue).toBeGreaterThan(0);
+    expect(hub.pulse.alertCount).toBeGreaterThanOrEqual(0);
+    expect(hub.comparisons.storeProfit).toHaveProperty("delta");
+  });
+
+  it("gera comparativo mensal da moto e tendencia da loja", () => {
+    const snapshot = createSeedSnapshot("local");
+    const month = snapshot.budgets[0].month;
+    const motoComparison = getMotoMonthlyComparison(snapshot, month);
+    const storeTrend = getStoreMonthlyTrend(snapshot, 4);
+
+    expect(motoComparison.monthlyCost).toHaveProperty("deltaPercent");
+    expect(storeTrend).toHaveLength(4);
+    expect(storeTrend[0]).toHaveProperty("profit");
   });
 });

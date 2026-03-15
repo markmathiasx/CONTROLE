@@ -1,17 +1,56 @@
-import { createClient } from "@supabase/supabase-js";
+import "server-only";
 
-export function getSupabaseAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import { createServerClient } from "@supabase/ssr";
+import type { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
-  if (!url || !key) {
+import { getSupabasePublicEnv } from "@/lib/env";
+
+export async function getSupabaseServerClient() {
+  const config = getSupabasePublicEnv();
+  if (!config) {
     return null;
   }
 
-  return createClient(url, key, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
+  const cookieStore = await cookies();
+
+  return createServerClient(config.url, config.anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll().map(({ name, value }) => ({ name, value }));
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            cookieStore.set(name, value, options);
+          });
+        } catch {
+          // Server components may not be allowed to mutate cookies. Middleware/route handlers handle refresh.
+        }
+      },
+    },
+  });
+}
+
+export async function getSupabaseRouteHandlerClient(response: NextResponse) {
+  const config = getSupabasePublicEnv();
+  if (!config) {
+    return null;
+  }
+
+  const cookieStore = await cookies();
+
+  return createServerClient(config.url, config.anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll().map(({ name, value }) => ({ name, value }));
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          cookieStore.set(name, value, options);
+          response.cookies.set(name, value, options);
+        });
+      },
     },
   });
 }

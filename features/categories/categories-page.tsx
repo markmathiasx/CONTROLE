@@ -4,6 +4,7 @@ import * as React from "react";
 import { Pencil, Trash2 } from "lucide-react";
 
 import { CategoryBadge } from "@/components/shared/category-badge";
+import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -32,7 +33,7 @@ export function CategoriesPage() {
   const [form, setForm] = React.useState<CategoryFormValues>(initialForm);
 
   if (!initialized || !snapshot) {
-    return null;
+    return <PageSkeleton cards={3} rows={2} />;
   }
 
   return (

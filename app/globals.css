@@ -8,17 +8,30 @@
 }
 
 :root {
-  --background: #f4f4f5;
+  --background: #eef2ff;
   --foreground: #0f172a;
+  --surface: rgba(255, 255, 255, 0.84);
+  --surface-strong: rgba(255, 255, 255, 0.94);
+  --surface-border: rgba(15, 23, 42, 0.08);
+  --ring: rgba(16, 185, 129, 0.45);
+  --shadow-soft: 0 30px 80px -40px rgba(15, 23, 42, 0.28);
+  color-scheme: light;
 }
 
 .dark {
   --background: #030712;
   --foreground: #f8fafc;
+  --surface: rgba(9, 9, 11, 0.76);
+  --surface-strong: rgba(9, 9, 11, 0.9);
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --ring: rgba(16, 185, 129, 0.5);
+  --shadow-soft: 0 32px 100px -48px rgba(0, 0, 0, 0.92);
+  color-scheme: dark;
 }
 
 * {
-  border-color: rgba(255, 255, 255, 0.08);
+  border-color: var(--surface-border);
+  -webkit-tap-highlight-color: transparent;
 }
 
 html {
@@ -28,6 +41,12 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
+  background-image:
+    radial-gradient(circle at top, rgba(16, 185, 129, 0.18), transparent 28%),
+    radial-gradient(circle at 85% 15%, rgba(14, 165, 233, 0.14), transparent 24%),
+    radial-gradient(circle at 50% 100%, rgba(139, 92, 246, 0.12), transparent 26%);
+  background-attachment: fixed;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
@@ -39,11 +58,66 @@ body {
   font-family: var(--font-heading), sans-serif;
 }
 
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease,
+    opacity 180ms ease;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(-160%);
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.24);
+  background: rgba(3, 7, 18, 0.92);
+  padding: 0.75rem 1rem;
+  color: #f8fafc;
+}
+
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
 ::-webkit-scrollbar {
   width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 999px;
+}
+
+::placeholder {
+  color: rgba(161, 161, 170, 0.84);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

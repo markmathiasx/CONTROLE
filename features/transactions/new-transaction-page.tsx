@@ -1,6 +1,7 @@
 "use client";
 
 import { EntryForm } from "@/components/shared/entry-form";
+import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useFinanceStore } from "@/store/use-finance-store";
 
@@ -9,7 +10,7 @@ export function NewTransactionPage() {
   const initialized = useFinanceStore((state) => state.initialized);
 
   if (!initialized || !snapshot) {
-    return null;
+    return <PageSkeleton cards={2} rows={1} />;
   }
 
   return (

@@ -5,6 +5,7 @@ import { CalendarRange } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { FutureInstallmentsList } from "@/components/shared/future-installments-list";
 import { MonthSwitcher } from "@/components/shared/month-switcher";
+import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { useFinanceStore } from "@/store/use-finance-store";
 import { getFutureInstallmentsByMonth } from "@/utils/finance";
 
@@ -15,7 +16,7 @@ export function InstallmentsPage() {
   const setSelectedMonth = useFinanceStore((state) => state.setSelectedMonth);
 
   if (!initialized || !snapshot) {
-    return null;
+    return <PageSkeleton cards={2} rows={2} />;
   }
 
   const items = getFutureInstallmentsByMonth(snapshot, selectedMonth, 6).filter(

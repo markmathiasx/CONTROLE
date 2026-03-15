@@ -7,6 +7,7 @@ import { CreditCardSummary } from "@/components/shared/credit-card-summary";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InvoiceSummaryCard } from "@/components/shared/invoice-summary-card";
 import { MonthSwitcher } from "@/components/shared/month-switcher";
+import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -37,7 +38,7 @@ export function CardsPage() {
   const [form, setForm] = React.useState<CardFormValues>(initialForm);
 
   if (!initialized || !snapshot) {
-    return null;
+    return <PageSkeleton cards={3} rows={2} />;
   }
 
   const invoices = getCardInvoices(snapshot, selectedMonth);

@@ -2,7 +2,13 @@ import { parseWorkspaceSnapshot } from "@/lib/snapshot-migrations";
 import type { WorkspaceSnapshot } from "@/types/domain";
 
 export const legacySnapshotKey = "controle-financeiro:snapshot";
-export const localSnapshotKey = "controle-financeiro:snapshot-v2";
+export const anonymousSnapshotKey = "controle-financeiro:snapshot-anonymous-v3";
+export const localSnapshotKey = anonymousSnapshotKey;
+export const localImportStateKey = "controle-financeiro:local-import-state";
+
+export function getWorkspaceSnapshotKey(workspaceId: string) {
+  return `controle-financeiro:snapshot:${workspaceId}`;
+}
 
 function getStorage() {
   if (typeof window === "undefined") {
@@ -57,5 +63,29 @@ export const localStorageAdapter = {
     }
 
     storage.removeItem(key);
+  },
+
+  loadImportState<T = unknown>() {
+    const storage = getStorage();
+    const raw = storage?.getItem(localImportStateKey);
+
+    if (!raw) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  },
+
+  saveImportState(value: unknown) {
+    const storage = getStorage();
+    if (!storage) {
+      return;
+    }
+
+    storage.setItem(localImportStateKey, JSON.stringify(value));
   },
 };

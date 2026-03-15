@@ -1,10 +1,12 @@
 import { appVersion, schemaVersion } from "@/lib/constants";
 import { workspaceSnapshotSchema } from "@/lib/schemas";
+import { slugify } from "@/lib/utils";
 import type {
   CategoryScope,
   CostCenter,
   CostCenterKind,
   RuntimeConfig,
+  User,
   WorkspaceSnapshot,
 } from "@/types/domain";
 
@@ -115,6 +117,35 @@ function makeCostCenter(
     createdAt: now,
     updatedAt: now,
     ...base,
+  };
+}
+
+function normalizeUser(rawUser: unknown, now: string): User {
+  const source = isRecord(rawUser) ? rawUser : {};
+  const displayName =
+    typeof source.displayName === "string" && source.displayName
+      ? source.displayName
+      : typeof source.name === "string" && source.name
+        ? source.name
+        : "Usuário";
+  const username =
+    typeof source.username === "string" && source.username
+      ? source.username
+      : slugify(displayName || "usuario");
+
+  return {
+    id: typeof source.id === "string" && source.id ? source.id : "user_owner",
+    username,
+    displayName,
+    email:
+      typeof source.email === "string" && source.email
+        ? source.email
+        : `${username || "usuario"}@local.app`,
+    avatarUrl:
+      typeof source.avatarUrl === "string" && source.avatarUrl ? source.avatarUrl : null,
+    role: source.role === "member" ? "member" : "owner",
+    createdAt: typeof source.createdAt === "string" ? source.createdAt : now,
+    updatedAt: typeof source.updatedAt === "string" ? source.updatedAt : now,
   };
 }
 
@@ -254,6 +285,7 @@ function migrateV1ToV2(raw: UnknownRecord): WorkspaceSnapshot {
   const next = {
     ...(raw as UnknownRecord),
     version: typeof raw.version === "number" ? raw.version : 1,
+    user: normalizeUser(raw.user, now),
     costCenters: migratedCostCenters,
     categories,
     cards: asArray(raw.cards),
@@ -304,6 +336,22 @@ function migrateV1ToV2(raw: UnknownRecord): WorkspaceSnapshot {
         isRecord(raw.meta) && typeof raw.meta.lastSyncedAt === "string"
           ? raw.meta.lastSyncedAt
           : null,
+      importedFromLocalAt:
+        isRecord(raw.meta) && typeof raw.meta.importedFromLocalAt === "string"
+          ? raw.meta.importedFromLocalAt
+          : null,
+      lastMergedAt:
+        isRecord(raw.meta) && typeof raw.meta.lastMergedAt === "string"
+          ? raw.meta.lastMergedAt
+          : null,
+      lastMergedHash:
+        isRecord(raw.meta) && typeof raw.meta.lastMergedHash === "string"
+          ? raw.meta.lastMergedHash
+          : null,
+      migrationOrigin:
+        isRecord(raw.meta) && typeof raw.meta.migrationOrigin === "string"
+          ? raw.meta.migrationOrigin
+          : "legacy-v1",
       dirty:
         isRecord(raw.meta) && typeof raw.meta.dirty === "boolean"
           ? raw.meta.dirty
@@ -375,6 +423,7 @@ function normalizeV2(raw: UnknownRecord): WorkspaceSnapshot {
 
   const normalized = {
     ...(raw as UnknownRecord),
+    user: normalizeUser(raw.user, now),
     costCenters,
     categories: asArray(raw.categories).map((category) => ({
       ...(category as UnknownRecord),
@@ -447,6 +496,22 @@ function normalizeV2(raw: UnknownRecord): WorkspaceSnapshot {
     meta: {
       ...(isRecord(raw.meta) ? raw.meta : {}),
       schemaVersion,
+      importedFromLocalAt:
+        isRecord(raw.meta) && typeof raw.meta.importedFromLocalAt === "string"
+          ? raw.meta.importedFromLocalAt
+          : null,
+      lastMergedAt:
+        isRecord(raw.meta) && typeof raw.meta.lastMergedAt === "string"
+          ? raw.meta.lastMergedAt
+          : null,
+      lastMergedHash:
+        isRecord(raw.meta) && typeof raw.meta.lastMergedHash === "string"
+          ? raw.meta.lastMergedHash
+          : null,
+      migrationOrigin:
+        isRecord(raw.meta) && typeof raw.meta.migrationOrigin === "string"
+          ? raw.meta.migrationOrigin
+          : null,
       appVersion,
     },
   };

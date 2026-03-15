@@ -1,4 +1,6 @@
 import {
+  anonymousSnapshotKey,
+  getWorkspaceSnapshotKey,
   legacySnapshotKey,
   localSnapshotKey,
   localStorageAdapter,
@@ -69,46 +71,46 @@ async function deleteItem(key: string) {
 }
 
 export const localDbAdapter = {
-  async load(): Promise<WorkspaceSnapshot | null> {
+  async load(key = localSnapshotKey): Promise<WorkspaceSnapshot | null> {
     if (!hasIndexedDb()) {
-      return localStorageAdapter.load();
+      return localStorageAdapter.load(key);
     }
 
     try {
-      const raw = await getItem<unknown>(localSnapshotKey);
+      const raw = await getItem<unknown>(key);
       if (!raw) {
         return null;
       }
 
       return parseWorkspaceSnapshot(raw);
     } catch {
-      return localStorageAdapter.load();
+      return localStorageAdapter.load(key);
     }
   },
 
-  async save(snapshot: WorkspaceSnapshot) {
-    localStorageAdapter.save(snapshot);
+  async save(snapshot: WorkspaceSnapshot, key = localSnapshotKey) {
+    localStorageAdapter.save(snapshot, key);
 
     if (!hasIndexedDb()) {
       return;
     }
 
-    await setItem(localSnapshotKey, snapshot);
+    await setItem(key, snapshot);
   },
 
-  async clear() {
-    localStorageAdapter.clear();
+  async clear(key = localSnapshotKey) {
+    localStorageAdapter.clear(key);
     localStorageAdapter.clear(legacySnapshotKey);
 
     if (!hasIndexedDb()) {
       return;
     }
 
-    await deleteItem(localSnapshotKey);
+    await deleteItem(key);
   },
 
   async migrateFromLegacyLocalStorage() {
-    const current = await this.load();
+    const current = await this.load(anonymousSnapshotKey);
     if (current) {
       return current;
     }
@@ -118,8 +120,32 @@ export const localDbAdapter = {
       return null;
     }
 
-    await this.save(legacy);
+    await this.save(legacy, anonymousSnapshotKey);
     localStorageAdapter.clear(legacySnapshotKey);
     return legacy;
+  },
+
+  async loadAnonymous() {
+    return this.load(anonymousSnapshotKey);
+  },
+
+  async saveAnonymous(snapshot: WorkspaceSnapshot) {
+    await this.save(snapshot, anonymousSnapshotKey);
+  },
+
+  async clearAnonymous() {
+    await this.clear(anonymousSnapshotKey);
+  },
+
+  async loadWorkspace(workspaceId: string) {
+    return this.load(getWorkspaceSnapshotKey(workspaceId));
+  },
+
+  async saveWorkspace(workspaceId: string, snapshot: WorkspaceSnapshot) {
+    await this.save(snapshot, getWorkspaceSnapshotKey(workspaceId));
+  },
+
+  async clearWorkspace(workspaceId: string) {
+    await this.clear(getWorkspaceSnapshotKey(workspaceId));
   },
 };

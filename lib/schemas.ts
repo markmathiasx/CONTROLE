@@ -16,6 +16,7 @@ import {
   storeOrderStatuses,
   supplyUnits,
   themeModes,
+  workspaceMemberRoles,
   wallets,
 } from "@/types/domain";
 
@@ -26,12 +27,16 @@ export const baseEntitySchema = z.object({
   createdAt: dateString,
   updatedAt: dateString,
   archivedAt: dateString.nullish(),
+  createdByUserId: z.string().nullish(),
+  updatedByUserId: z.string().nullish(),
 });
 
 export const userSchema = baseEntitySchema.extend({
-  name: z.string().min(1),
-  email: z.string().email().nullish(),
-  role: z.enum(["owner", "member"]),
+  username: z.string().min(1),
+  displayName: z.string().min(1),
+  email: z.string().email(),
+  avatarUrl: z.string().nullish(),
+  role: z.enum(workspaceMemberRoles),
 });
 
 export const workspaceSchema = baseEntitySchema.extend({
@@ -40,11 +45,28 @@ export const workspaceSchema = baseEntitySchema.extend({
   currency: z.literal("BRL"),
   timezone: z.string().min(1),
   ownerUserId: z.string().min(1),
+  isPersonal: z.boolean().nullish(),
   branding: z.object({
     appName: z.string().min(1),
     accent: z.string().min(1),
     logoMode: z.enum(["glyph", "wordmark"]),
   }),
+});
+
+export const workspaceMemberSchema = baseEntitySchema.extend({
+  workspaceId: z.string().min(1),
+  userId: z.string().min(1),
+  role: z.enum(workspaceMemberRoles),
+});
+
+export const userSettingsRecordSchema = baseEntitySchema.extend({
+  userId: z.string().min(1),
+  activeWorkspaceId: z.string().nullish(),
+  theme: z.enum(themeModes),
+  onboardingCompleted: z.boolean(),
+  localImportDecision: z.enum(["merged", "skipped"]).nullish(),
+  importedFromLocalAt: dateString.nullish(),
+  lastLocalMergeHash: z.string().nullish(),
 });
 
 export const costCenterSchema = baseEntitySchema.extend({
@@ -194,6 +216,7 @@ export const maintenanceLogSchema = baseEntitySchema.extend({
   notes: z.string().nullish(),
   recurringMonths: z.number().int().positive().nullish(),
   recurringKm: z.number().int().positive().nullish(),
+  paymentMethod: z.enum(paymentMethods).nullish(),
   transactionId: z.string().nullish(),
 });
 
@@ -240,10 +263,12 @@ export const stockMovementSchema = baseEntitySchema.extend({
   centerId: z.string().min(1),
   itemKind: z.enum(stockItemKinds),
   itemId: z.string().min(1),
+  itemName: z.string().nullish(),
+  itemCategory: z.string().nullish(),
   movementKind: z.enum(stockMovementKinds),
-  quantity: z.number().positive(),
+  quantity: z.number(),
   unitCost: z.number().nonnegative(),
-  totalCost: z.number().nonnegative(),
+  totalCost: z.number(),
   occurredAt: dateString,
   relatedProductionJobId: z.string().nullish(),
   notes: z.string().nullish(),
@@ -255,6 +280,7 @@ export const productionMaterialUsageSchema = baseEntitySchema.extend({
   itemKind: z.enum(stockItemKinds),
   itemId: z.string().min(1),
   itemName: z.string().min(1),
+  itemCategory: z.string().nullish(),
   quantity: z.number().nonnegative(),
   wasteQuantity: z.number().nonnegative(),
   unitCost: z.number().nonnegative(),
@@ -281,7 +307,10 @@ export const productionJobSchema = baseEntitySchema.extend({
   materialCost: z.number().nonnegative(),
   wasteCost: z.number().nonnegative(),
   supplyCost: z.number().nonnegative(),
+  paintCost: z.number().nonnegative().optional(),
+  otherSupplyCost: z.number().nonnegative().optional(),
   finishingCost: z.number().nonnegative(),
+  fixedCostApplied: z.number().nonnegative().optional(),
   totalCost: z.number().nonnegative(),
   unitCost: z.number().nonnegative(),
   grossProfit: z.number(),
@@ -322,6 +351,10 @@ export const workspaceMetaSchema = z.object({
   seededAt: dateString,
   updatedAt: dateString,
   lastSyncedAt: dateString.nullish(),
+  importedFromLocalAt: dateString.nullish(),
+  lastMergedAt: dateString.nullish(),
+  lastMergedHash: z.string().nullish(),
+  migrationOrigin: z.string().nullish(),
   dirty: z.boolean(),
   source: z.enum(["seed", "local", "remote"]),
   storageMode: z.enum(storageModes),

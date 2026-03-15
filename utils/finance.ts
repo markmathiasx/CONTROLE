@@ -5,6 +5,7 @@ import {
   addYears,
   compareAsc,
   compareDesc,
+  differenceInCalendarDays,
   endOfMonth,
   format,
   isAfter,
@@ -14,7 +15,8 @@ import {
   startOfMonth,
 } from "date-fns";
 
-import { paymentMethodLabels } from "@/lib/constants";
+import { maintenanceCategoryLabels, paymentMethodLabels } from "@/lib/constants";
+import { formatCurrencyBRL } from "@/lib/formatters";
 import { formatMonthKey, listMonthKeys, roundCurrency } from "@/lib/utils";
 import type {
   CardInvoice,
@@ -23,6 +25,8 @@ import type {
   MaintenanceReminder,
   PaymentMethod,
   RecurrenceRule,
+  StockItemKind,
+  StockMovementKind,
   WorkspaceSnapshot,
 } from "@/types/domain";
 
@@ -41,6 +45,7 @@ export interface UnifiedEntry {
 
 export interface MaterializedOccurrence {
   id: string;
+  recurrenceRuleId: string;
   kind: EntryKind;
   date: string;
   description: string;
@@ -50,6 +55,41 @@ export interface MaterializedOccurrence {
   paymentMethod?: PaymentMethod | null;
   wallet?: Income["wallet"] | null;
   incomeType?: Income["incomeType"] | null;
+}
+
+export interface AlertItem {
+  id: string;
+  tone: "warning" | "critical";
+  module: "finance" | "moto" | "store" | "shared";
+  title: string;
+  body: string;
+}
+
+export interface AutomationItem {
+  id: string;
+  module: "finance" | "moto" | "store";
+  tone: "info" | "warning" | "critical";
+  title: string;
+  body: string;
+  date?: string | null;
+  dueKm?: number | null;
+}
+
+export interface RecurrenceInsights {
+  activeRules: number;
+  incomeRules: number;
+  expenseRules: number;
+  endingSoonCount: number;
+  upcomingCount: number;
+  nextOccurrences: MaterializedOccurrence[];
+}
+
+export interface DeltaMetric {
+  current: number;
+  previous: number;
+  delta: number;
+  deltaPercent: number;
+  trend: "up" | "down" | "flat";
 }
 
 function sortByDateDesc(a: { date: string }, b: { date: string }) {
@@ -68,6 +108,35 @@ function getMonthBounds(monthKey: string) {
   };
 }
 
+function isValidParsedDate(value: Date) {
+  return !Number.isNaN(value.getTime());
+}
+
+function normalizeInterval(interval?: number) {
+  if (!interval || !Number.isFinite(interval)) {
+    return 1;
+  }
+
+  return Math.max(1, Math.floor(interval));
+}
+
+function createDeltaMetric(current: number, previous: number): DeltaMetric {
+  const delta = roundCurrency(current - previous);
+  const deltaPercent = previous
+    ? roundCurrency((delta / previous) * 100)
+    : current
+      ? 100
+      : 0;
+
+  return {
+    current,
+    previous,
+    delta,
+    deltaPercent,
+    trend: delta > 0 ? "up" : delta < 0 ? "down" : "flat",
+  };
+}
+
 export function materializeRecurrences(
   rules: RecurrenceRule[],
   startDate: Date,
@@ -77,24 +146,39 @@ export function materializeRecurrences(
 
   rules.forEach((rule) => {
     let cursor = parseISO(rule.startDate);
+    const interval = normalizeInterval(rule.interval);
+    const endLimit = rule.endDate ? parseISO(rule.endDate) : null;
+
+    if (!isValidParsedDate(cursor)) {
+      return;
+    }
+
+    if (endLimit && !isValidParsedDate(endLimit)) {
+      return;
+    }
+
+    if (endLimit && isBefore(endLimit, startDate)) {
+      return;
+    }
 
     if (isBefore(cursor, startDate)) {
       while (isBefore(cursor, startDate)) {
         cursor =
           rule.frequency === "weekly"
-            ? addWeeks(cursor, rule.interval)
+            ? addWeeks(cursor, interval)
             : rule.frequency === "monthly"
-              ? addMonths(cursor, rule.interval)
-              : addYears(cursor, rule.interval);
+              ? addMonths(cursor, interval)
+              : addYears(cursor, interval);
       }
     }
 
     while (
       (isBefore(cursor, endDate) || isEqual(cursor, endDate)) &&
-      (!rule.endDate || !isAfter(cursor, parseISO(rule.endDate)))
+      (!endLimit || !isAfter(cursor, endLimit))
     ) {
       items.push({
         id: `${rule.id}_${format(cursor, "yyyy-MM-dd")}`,
+        recurrenceRuleId: rule.id,
         kind: rule.kind,
         date: format(cursor, "yyyy-MM-dd"),
         description: rule.description,
@@ -108,14 +192,40 @@ export function materializeRecurrences(
 
       cursor =
         rule.frequency === "weekly"
-          ? addWeeks(cursor, rule.interval)
+          ? addWeeks(cursor, interval)
           : rule.frequency === "monthly"
-            ? addMonths(cursor, rule.interval)
-            : addYears(cursor, rule.interval);
+            ? addMonths(cursor, interval)
+            : addYears(cursor, interval);
     }
   });
 
   return items.sort(sortByDateDesc);
+}
+
+function hasRealEntryForOccurrence(snapshot: WorkspaceSnapshot, occurrence: MaterializedOccurrence) {
+  if (occurrence.kind === "expense") {
+    return snapshot.transactions.some(
+      (transaction) =>
+        transaction.recurrenceRuleId === occurrence.recurrenceRuleId &&
+        transaction.transactionDate === occurrence.date,
+    );
+  }
+
+  return snapshot.incomes.some(
+    (income) =>
+      income.recurrenceRuleId === occurrence.recurrenceRuleId &&
+      income.receivedAt === occurrence.date,
+  );
+}
+
+function getMaterializedOccurrencesForWindow(
+  snapshot: WorkspaceSnapshot,
+  startDate: Date,
+  endDate: Date,
+) {
+  return materializeRecurrences(snapshot.recurrences, startDate, endDate).filter(
+    (occurrence) => !hasRealEntryForOccurrence(snapshot, occurrence),
+  );
 }
 
 export function listUnifiedEntries(snapshot: WorkspaceSnapshot, monthKey?: string) {
@@ -162,7 +272,7 @@ export function getRecurringOccurrencesForMonth(
   monthKey: string,
 ) {
   const bounds = getMonthBounds(monthKey);
-  return materializeRecurrences(snapshot.recurrences, bounds.start, bounds.end);
+  return getMaterializedOccurrencesForWindow(snapshot, bounds.start, bounds.end);
 }
 
 export function getCardInvoices(snapshot: WorkspaceSnapshot, monthKey: string): CardInvoice[] {
@@ -320,6 +430,80 @@ export function getMonthlyEvolution(snapshot: WorkspaceSnapshot, months = 6) {
   });
 }
 
+export function getMonthlyComparisons(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const previousMonth = formatMonthKey(addMonths(parseISO(`${monthKey}-01`), -1));
+  const currentSummary = getDashboardSummary(snapshot, monthKey);
+  const previousSummary = getDashboardSummary(snapshot, previousMonth);
+
+  const metrics = [
+    {
+      id: "income",
+      label: "Receita",
+      current: currentSummary.consolidated.incomeTotal,
+      previous: previousSummary.consolidated.incomeTotal,
+    },
+    {
+      id: "expense",
+      label: "Despesa",
+      current: currentSummary.consolidated.expenseTotal,
+      previous: previousSummary.consolidated.expenseTotal,
+    },
+    {
+      id: "net",
+      label: "Saldo líquido",
+      current: currentSummary.consolidated.net,
+      previous: previousSummary.consolidated.net,
+    },
+    {
+      id: "invoice",
+      label: "Fatura",
+      current: currentSummary.invoiceTotal,
+      previous: previousSummary.invoiceTotal,
+    },
+  ] as const;
+
+  return metrics.map((metric) => {
+    const delta = roundCurrency(metric.current - metric.previous);
+    const deltaPercent = metric.previous
+      ? roundCurrency((delta / metric.previous) * 100)
+      : metric.current
+        ? 100
+        : 0;
+
+    return {
+      ...metric,
+      delta,
+      deltaPercent,
+    };
+  });
+}
+
+export function getConsolidatedMonthlyTrend(snapshot: WorkspaceSnapshot, months = 6) {
+  const monthKeys = listMonthKeys(addMonths(startOfMonth(new Date()), -(months - 1)), months);
+
+  return monthKeys.map((month) => {
+    const consolidated = getConsolidatedSummary(snapshot, month);
+    const motoCost = roundCurrency(
+      calculateFuelTotals(snapshot, month).totalCost +
+        calculateMaintenanceTotals(snapshot, month).totalCost,
+    );
+    const store = getStoreDashboardSummary(snapshot, month);
+
+    return {
+      month,
+      income: consolidated.incomeTotal,
+      expense: consolidated.expenseTotal,
+      net: consolidated.net,
+      personalExpense: consolidated.personalExpense,
+      operationalExpense: consolidated.operationalExpense,
+      operationalIncome: consolidated.operationalIncome,
+      motoCost,
+      storeRevenue: store.revenue,
+      storeProfit: store.grossProfit,
+    };
+  });
+}
+
 export function getConsolidatedSummary(snapshot: WorkspaceSnapshot, monthKey: string) {
   const transactions = getTransactionsForMonth(snapshot, monthKey);
   const incomes = getIncomesForMonth(snapshot, monthKey);
@@ -450,7 +634,7 @@ export function getProjectionMonths(
     const recurringCashIncome = recurring
       .filter((item) => item.kind === "income" && item.wallet === "cash")
       .reduce((sum, item) => sum + item.amount, 0);
-    const cashIncome = roundCurrency(Math.max(actualCashIncome, recurringCashIncome));
+    const cashIncome = roundCurrency(actualCashIncome + recurringCashIncome);
     const immediateExpenses = getTransactionsForMonth(snapshot, month)
       .filter((transaction) =>
         ["cash", "pix", "debit"].includes(transaction.paymentMethod),
@@ -468,9 +652,7 @@ export function getProjectionMonths(
       (sum, invoice) => sum + invoice.total,
       0,
     );
-    const committed = roundCurrency(
-      Math.max(immediateExpenses, recurringExpenses) + invoiceTotal,
-    );
+    const committed = roundCurrency(immediateExpenses + recurringExpenses + invoiceTotal);
     const remaining = roundCurrency(cashIncome - committed);
     const committedRatio = cashIncome ? roundCurrency((committed / cashIncome) * 100) : 0;
 
@@ -488,8 +670,11 @@ export function getProjectionMonths(
 export function getUpcomingDueItems(snapshot: WorkspaceSnapshot, monthKey: string) {
   const currentMonthDate = parseISO(`${monthKey}-01`);
   const nextWindowEnd = endOfMonth(addMonths(currentMonthDate, 1));
-  const recurring = materializeRecurrences(
-    snapshot.recurrences.filter((rule) => rule.kind === "expense"),
+  const recurring = getMaterializedOccurrencesForWindow(
+    {
+      ...snapshot,
+      recurrences: snapshot.recurrences.filter((rule) => rule.kind === "expense"),
+    },
     currentMonthDate,
     nextWindowEnd,
   );
@@ -524,18 +709,153 @@ export function getUpcomingDueItems(snapshot: WorkspaceSnapshot, monthKey: strin
     .slice(0, 8);
 }
 
+export function getRecurrenceInsights(snapshot: WorkspaceSnapshot, monthKey: string): RecurrenceInsights {
+  const monthStart = startOfMonth(parseISO(`${monthKey}-01`));
+  const windowEnd = addDays(endOfMonth(monthStart), 21);
+  const activeRules = snapshot.recurrences.filter((rule) => {
+    if (!rule.endDate) {
+      return true;
+    }
+
+    return !isBefore(parseISO(rule.endDate), monthStart);
+  });
+  const nextOccurrences = getMaterializedOccurrencesForWindow(snapshot, monthStart, windowEnd)
+    .sort(sortByDateAsc)
+    .slice(0, 8);
+  const endingSoonCount = activeRules.filter((rule) => {
+    if (!rule.endDate) {
+      return false;
+    }
+
+    const endDate = parseISO(rule.endDate);
+    return (
+      isValidParsedDate(endDate) &&
+      !isBefore(endDate, monthStart) &&
+      differenceInCalendarDays(endDate, monthStart) <= 21
+    );
+  }).length;
+
+  return {
+    activeRules: activeRules.length,
+    incomeRules: activeRules.filter((rule) => rule.kind === "income").length,
+    expenseRules: activeRules.filter((rule) => rule.kind === "expense").length,
+    endingSoonCount,
+    upcomingCount: nextOccurrences.length,
+    nextOccurrences,
+  };
+}
+
+export function getStoreMonthlyTrend(snapshot: WorkspaceSnapshot, months = 6) {
+  const monthKeys = listMonthKeys(addMonths(startOfMonth(new Date()), -(months - 1)), months);
+
+  return monthKeys.map((month) => {
+    const store = getStoreDashboardSummary(snapshot, month);
+    const production = getStoreProductionInsights(snapshot, month);
+
+    return {
+      month,
+      revenue: store.revenue,
+      cost: store.cost,
+      profit: store.grossProfit,
+      wasteCost: store.wasteCost,
+      wasteGrams: store.wasteGrams,
+      energyCost: production.totalEnergyCost,
+      paintCost: production.totalPaintCost,
+    };
+  });
+}
+
+export function getAutomationFeed(snapshot: WorkspaceSnapshot, monthKey: string, limit = 8) {
+  const recurrence = getRecurrenceInsights(snapshot, monthKey).nextOccurrences.map((item) => {
+    const dueInDays = differenceInCalendarDays(parseISO(item.date), new Date());
+
+    return {
+      id: item.id,
+      module: "finance" as const,
+      tone: dueInDays <= 3 ? ("warning" as const) : ("info" as const),
+      title: item.kind === "income" ? "Entrada recorrente prevista" : "Conta recorrente prevista",
+      body: `${item.description} em ${format(parseISO(item.date), "dd/MM")} por ${formatCurrencyBRL(roundCurrency(item.amount))}.`,
+      date: item.date,
+      dueKm: null,
+    };
+  });
+
+  const reminders = getMotoUpcomingReminders(snapshot, limit).map((item) => ({
+    id: item.id,
+    module: "moto" as const,
+    tone: item.isOverdue ? ("critical" as const) : ("warning" as const),
+    title: item.isOverdue ? "Manutenção vencida" : "Manutenção próxima",
+    body: item.dueKm
+      ? `${item.title} por volta de ${item.dueKm} km.`
+      : `${item.title}${item.dueDate ? ` em ${format(parseISO(item.dueDate), "dd/MM")}` : ""}.`,
+    date: item.dueDate ?? null,
+    dueKm: item.dueKm ?? null,
+  }));
+
+  const stock = getStoreStockSummary(snapshot);
+  const stockActions: AutomationItem[] = [
+    ...stock.criticalSpools.map((item) => ({
+      id: `stock-spool-${item.id}`,
+      module: "store" as const,
+      tone: "warning" as const,
+      title: "Repor filamento",
+      body: `${item.name} está com ${item.remainingWeightGrams} g restantes.`,
+      date: null,
+      dueKm: null,
+    })),
+    ...stock.criticalSupplies.map((item) => ({
+      id: `stock-supply-${item.id}`,
+      module: "store" as const,
+      tone: "warning" as const,
+      title: "Repor insumo",
+      body: `${item.name} está em nível crítico (${item.remainingQuantity} ${item.unit}).`,
+      date: null,
+      dueKm: null,
+    })),
+  ];
+
+  return [...reminders, ...recurrence, ...stockActions]
+    .sort((a, b) => {
+      const toneScore = { critical: 0, warning: 1, info: 2 };
+      if (toneScore[a.tone] !== toneScore[b.tone]) {
+        return toneScore[a.tone] - toneScore[b.tone];
+      }
+
+      if (a.date && b.date) {
+        return compareAsc(parseISO(a.date), parseISO(b.date));
+      }
+
+      if (a.date && !b.date) {
+        return -1;
+      }
+
+      if (!a.date && b.date) {
+        return 1;
+      }
+
+      if (a.dueKm && b.dueKm) {
+        return a.dueKm - b.dueKm;
+      }
+
+      return a.title.localeCompare(b.title, "pt-BR");
+    })
+    .slice(0, limit);
+}
+
 export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
   const summary = getDashboardSummary(snapshot, monthKey);
   const budgetUsage = getBudgetUsage(snapshot, monthKey);
   const monthProjection = getProjectionMonths(snapshot, monthKey, 3);
   const storeSummary = getStoreDashboardSummary(snapshot, monthKey);
-  const alerts: Array<{ id: string; tone: "warning" | "critical"; title: string; body: string }> =
-    [];
+  const recurrenceInsights = getRecurrenceInsights(snapshot, monthKey);
+  const motoReminders = getMotoUpcomingReminders(snapshot, 5);
+  const alerts: AlertItem[] = [];
 
   if (summary.projectedCashBalance <= snapshot.settings.salaryMonthly * 0.15) {
     alerts.push({
       id: "low-cash",
       tone: summary.projectedCashBalance < 0 ? "critical" : "warning",
+      module: "finance",
       title: "Saldo projetado apertado",
       body: "O caixa do mês está perto do limite depois da fatura e das contas previstas.",
     });
@@ -545,6 +865,7 @@ export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
     alerts.push({
       id: "low-vr",
       tone: summary.vrBalance < 0 ? "critical" : "warning",
+      module: "finance",
       title: "VR acabando",
       body: "Os gastos com alimentação já consumiram quase todo o vale do mês.",
     });
@@ -555,6 +876,7 @@ export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
       alerts.push({
         id: `invoice-${invoice.cardId}`,
         tone: invoice.utilization >= 80 ? "critical" : "warning",
+        module: "finance",
         title: "Fatura do cartão subindo",
         body: `Este cartão já está em ${Math.round(invoice.utilization)}% de uso no mês.`,
       });
@@ -568,6 +890,7 @@ export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
       alerts.push({
         id: `budget-${item.budget.id}`,
         tone: item.status === "critical" ? "critical" : "warning",
+        module: "finance",
         title: `Orçamento de ${item.category?.name ?? "categoria"} em alerta`,
         body: "O gasto desta categoria já está perto ou acima do limite definido.",
       });
@@ -577,8 +900,28 @@ export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
     alerts.push({
       id: "future-commitment",
       tone: "warning",
+      module: "finance",
       title: "Próximos meses comprometidos",
       body: "Uma das próximas projeções está acima de 35% da renda monetária.",
+    });
+  }
+
+  const overdueReminders = motoReminders.filter((item) => item.isOverdue);
+  if (overdueReminders.length) {
+    alerts.push({
+      id: "moto-overdue",
+      tone: "critical",
+      module: "moto",
+      title: "Moto com manutenção vencida",
+      body: `${overdueReminders.length} cuidado(s) já passaram do ponto por data ou quilometragem.`,
+    });
+  } else if (motoReminders.length) {
+    alerts.push({
+      id: "moto-upcoming",
+      tone: "warning",
+      module: "moto",
+      title: "Cuidados da moto chegando",
+      body: "Já existem manutenções próximas; vale se organizar antes de virar urgência.",
     });
   }
 
@@ -586,12 +929,51 @@ export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
     alerts.push({
       id: "stock-critical",
       tone: "warning",
+      module: "store",
       title: "Estoque crítico na loja",
       body: `${storeSummary.criticalStockCount} item(ns) já estão abaixo do nível seguro.`,
     });
   }
 
-  return alerts.slice(0, 6);
+  if (storeSummary.grossProfit < 0) {
+    alerts.push({
+      id: "store-loss",
+      tone: "critical",
+      module: "store",
+      title: "Loja fechou no prejuízo",
+      body: "O período selecionado está com margem negativa entre custo e faturamento entregue.",
+    });
+  }
+
+  if (storeSummary.cost > 0) {
+    const wasteRatio = roundCurrency((storeSummary.wasteCost / storeSummary.cost) * 100);
+    if (wasteRatio >= 10) {
+      alerts.push({
+        id: "store-waste",
+        tone: wasteRatio >= 20 ? "critical" : "warning",
+        module: "store",
+        title: "Desperdício pesando na loja",
+        body: `O desperdício já representa ${Math.round(wasteRatio)}% do custo produtivo do período.`,
+      });
+    }
+  }
+
+  if (recurrenceInsights.endingSoonCount > 0) {
+    alerts.push({
+      id: "recurrence-ending",
+      tone: "warning",
+      module: "finance",
+      title: "Recorrências perto do fim",
+      body: `${recurrenceInsights.endingSoonCount} recorrência(s) vão encerrar em breve e podem afetar as próximas projeções.`,
+    });
+  }
+
+  return alerts
+    .sort((a, b) => {
+      const toneScore = { critical: 0, warning: 1 };
+      return toneScore[a.tone] - toneScore[b.tone];
+    })
+    .slice(0, 8);
 }
 
 export function getExpenseHighlights(snapshot: WorkspaceSnapshot, monthKey: string) {
@@ -626,6 +1008,24 @@ export function calculateFuelTotals(snapshot: WorkspaceSnapshot, monthKey: strin
   };
 }
 
+export function getMotoFuelInsights(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const fuel = calculateFuelTotals(snapshot, monthKey);
+  const averagePricePerLiter = fuel.totalLiters
+    ? roundCurrency(fuel.totalCost / fuel.totalLiters)
+    : 0;
+  const averageTicket = fuel.count ? roundCurrency(fuel.totalCost / fuel.count) : 0;
+  const lastOdometerKm =
+    fuel.logs[0]?.odometerKm ??
+    snapshot.vehicles.reduce((highest, vehicle) => Math.max(highest, vehicle.currentOdometerKm), 0);
+
+  return {
+    ...fuel,
+    averagePricePerLiter,
+    averageTicket,
+    lastOdometerKm,
+  };
+}
+
 export function calculateMaintenanceTotals(snapshot: WorkspaceSnapshot, monthKey: string) {
   const logs = snapshot.maintenanceLogs.filter((item) => formatMonthKey(item.date) === monthKey);
 
@@ -637,6 +1037,33 @@ export function calculateMaintenanceTotals(snapshot: WorkspaceSnapshot, monthKey
       return acc;
     }, {}),
     logs: logs.sort((a, b) => compareDesc(parseISO(a.date), parseISO(b.date))),
+  };
+}
+
+export function getMotoMaintenanceInsights(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const maintenance = calculateMaintenanceTotals(snapshot, monthKey);
+  const reminders = getMaintenanceReminders(snapshot);
+  const reminderByLogId = new Map(reminders.map((reminder) => [reminder.maintenanceLogId, reminder]));
+  const enrichedLogs = maintenance.logs.map((log) => ({
+    ...log,
+    reminder: reminderByLogId.get(log.id) ?? null,
+  }));
+  const overdueCount = reminders.filter((reminder) => reminder.isOverdue).length;
+  const upcomingCount = reminders.filter((reminder) => !reminder.isOverdue).length;
+  const topCategoryEntry = Object.entries(maintenance.byCategory).sort((a, b) => b[1] - a[1])[0];
+
+  return {
+    ...maintenance,
+    logs: enrichedLogs,
+    overdueCount,
+    upcomingCount,
+    topCategory: topCategoryEntry
+      ? {
+          slug: topCategoryEntry[0],
+          label: maintenanceCategoryLabels[topCategoryEntry[0] as keyof typeof maintenanceCategoryLabels] ?? topCategoryEntry[0],
+          total: topCategoryEntry[1],
+        }
+      : null,
   };
 }
 
@@ -671,14 +1098,75 @@ export function getMaintenanceReminders(snapshot: WorkspaceSnapshot): Maintenanc
     });
 }
 
-export function getMotoDashboardSummary(snapshot: WorkspaceSnapshot, monthKey: string) {
+export function getMotoUpcomingReminders(snapshot: WorkspaceSnapshot, limit = 5) {
+  return getMaintenanceReminders(snapshot)
+    .sort((a, b) => {
+      if (a.isOverdue !== b.isOverdue) {
+        return a.isOverdue ? -1 : 1;
+      }
+
+      if (a.dueDate && b.dueDate) {
+        return compareAsc(parseISO(a.dueDate), parseISO(b.dueDate));
+      }
+
+      if (a.dueKm && b.dueKm) {
+        return a.dueKm - b.dueKm;
+      }
+
+      return 0;
+    })
+    .slice(0, limit);
+}
+
+export function getMotoMonthlyTrend(snapshot: WorkspaceSnapshot, months = 6) {
+  const monthKeys = listMonthKeys(addMonths(startOfMonth(new Date()), -(months - 1)), months);
+
+  return monthKeys.map((month) => {
+    const fuel = calculateFuelTotals(snapshot, month);
+    const maintenance = calculateMaintenanceTotals(snapshot, month);
+
+    return {
+      month,
+      fuelCost: fuel.totalCost,
+      maintenanceCost: maintenance.totalCost,
+      totalCost: roundCurrency(fuel.totalCost + maintenance.totalCost),
+      liters: fuel.totalLiters,
+    };
+  });
+}
+
+export function getMotoCostByCategory(snapshot: WorkspaceSnapshot, monthKey: string) {
   const fuel = calculateFuelTotals(snapshot, monthKey);
   const maintenance = calculateMaintenanceTotals(snapshot, monthKey);
-  const reminders = getMaintenanceReminders(snapshot);
+  const items = [
+    fuel.totalCost
+      ? {
+          key: "fuel",
+          label: "Combustível",
+          total: fuel.totalCost,
+        }
+      : null,
+    ...Object.entries(maintenance.byCategory).map(([category, total]) => ({
+      key: category,
+      label: maintenanceCategoryLabels[category as keyof typeof maintenanceCategoryLabels] ?? category,
+      total,
+    })),
+  ].filter((item): item is { key: string; label: string; total: number } => Boolean(item));
+
+  return items.sort((a, b) => b.total - a.total);
+}
+
+export function getMotoDashboardSummary(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const fuel = getMotoFuelInsights(snapshot, monthKey);
+  const maintenance = getMotoMaintenanceInsights(snapshot, monthKey);
+  const reminders = getMotoUpcomingReminders(snapshot, 5);
 
   return {
     fuelCost: fuel.totalCost,
     fuelLiters: fuel.totalLiters,
+    averagePricePerLiter: fuel.averagePricePerLiter,
+    averageTicket: fuel.averageTicket,
+    lastOdometerKm: fuel.lastOdometerKm,
     maintenanceCost: maintenance.totalCost,
     monthlyCost: roundCurrency(fuel.totalCost + maintenance.totalCost),
     recentFuelLogs: fuel.logs.slice(0, 5),
@@ -699,8 +1187,145 @@ export function getStoreStockSummary(snapshot: WorkspaceSnapshot) {
     filamentCount: snapshot.filamentSpools.length,
     supplyCount: snapshot.supplyItems.length,
     criticalStockCount: criticalSpools.length + criticalSupplies.length,
+    filamentValue: roundCurrency(
+      snapshot.filamentSpools.reduce(
+        (sum, item) => sum + item.remainingWeightGrams * item.costPerGram,
+        0,
+      ),
+    ),
+    supplyValue: roundCurrency(
+      snapshot.supplyItems.reduce(
+        (sum, item) => sum + item.remainingQuantity * item.unitCost,
+        0,
+      ),
+    ),
     criticalSpools,
     criticalSupplies,
+  };
+}
+
+export function getStoreMovementFeed(
+  snapshot: WorkspaceSnapshot,
+  filters?: {
+    month?: string;
+    itemKind?: StockItemKind | "all";
+    movementKind?: StockMovementKind | "all";
+  },
+) {
+  return snapshot.stockMovements
+    .filter((movement) => (filters?.month ? formatMonthKey(movement.occurredAt) === filters.month : true))
+    .filter((movement) => (filters?.itemKind && filters.itemKind !== "all" ? movement.itemKind === filters.itemKind : true))
+    .filter((movement) =>
+      filters?.movementKind && filters.movementKind !== "all" ? movement.movementKind === filters.movementKind : true,
+    )
+    .map((movement) => {
+      const item =
+        movement.itemKind === "filament"
+          ? snapshot.filamentSpools.find((entry) => entry.id === movement.itemId)
+          : snapshot.supplyItems.find((entry) => entry.id === movement.itemId);
+      const productionJob = movement.relatedProductionJobId
+        ? snapshot.productionJobs.find((job) => job.id === movement.relatedProductionJobId)
+        : null;
+
+      return {
+        ...movement,
+        itemName: movement.itemName ?? item?.name ?? "Item removido",
+        itemCategory:
+          movement.itemCategory ??
+          (movement.itemKind === "filament"
+            ? item && "material" in item
+              ? `${item.material} • ${item.color}`
+              : null
+            : item && "category" in item
+              ? item.category
+              : null),
+        productionJobName: productionJob?.name ?? null,
+      };
+    })
+    .sort((a, b) => {
+      const dateDiff = compareDesc(parseISO(a.occurredAt), parseISO(b.occurredAt));
+      if (dateDiff !== 0) {
+        return dateDiff;
+      }
+
+      return compareDesc(parseISO(a.updatedAt), parseISO(b.updatedAt));
+    });
+}
+
+export function getStoreConsumptionByFilament(snapshot: WorkspaceSnapshot, monthKey?: string) {
+  const jobsById = new Map(snapshot.productionJobs.map((job) => [job.id, job]));
+  const grouped = new Map<string, { label: string; quantity: number; wasteQuantity: number; totalCost: number }>();
+
+  snapshot.productionMaterialUsages
+    .filter((usage) => usage.itemKind === "filament")
+    .filter((usage) => {
+      if (!monthKey) {
+        return true;
+      }
+
+      const job = jobsById.get(usage.productionJobId);
+      return job ? formatMonthKey(job.date) === monthKey : false;
+    })
+    .forEach((usage) => {
+      const spool = snapshot.filamentSpools.find((item) => item.id === usage.itemId);
+      const label = spool ? `${spool.material} • ${spool.color}` : usage.itemName;
+      const current = grouped.get(label) ?? { label, quantity: 0, wasteQuantity: 0, totalCost: 0 };
+
+      current.quantity = roundCurrency(current.quantity + usage.quantity);
+      current.wasteQuantity = roundCurrency(current.wasteQuantity + usage.wasteQuantity);
+      current.totalCost = roundCurrency(current.totalCost + usage.totalCost);
+      grouped.set(label, current);
+    });
+
+  return Array.from(grouped.values()).sort((a, b) => b.quantity - a.quantity);
+}
+
+export function getStoreWasteByItem(snapshot: WorkspaceSnapshot, monthKey?: string) {
+  const jobsById = new Map(snapshot.productionJobs.map((job) => [job.id, job]));
+  const grouped = new Map<string, { label: string; wasteQuantity: number; wasteCost: number }>();
+
+  snapshot.productionMaterialUsages
+    .filter((usage) => usage.wasteQuantity > 0)
+    .filter((usage) => {
+      if (!monthKey) {
+        return true;
+      }
+
+      const job = jobsById.get(usage.productionJobId);
+      return job ? formatMonthKey(job.date) === monthKey : false;
+    })
+    .forEach((usage) => {
+      const label = usage.itemName;
+      const current = grouped.get(label) ?? { label, wasteQuantity: 0, wasteCost: 0 };
+      current.wasteQuantity = roundCurrency(current.wasteQuantity + usage.wasteQuantity);
+      current.wasteCost = roundCurrency(current.wasteCost + usage.wasteQuantity * usage.unitCost);
+      grouped.set(label, current);
+    });
+
+  return Array.from(grouped.values()).sort((a, b) => b.wasteCost - a.wasteCost);
+}
+
+export function getStoreProductionInsights(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const jobs = snapshot.productionJobs.filter((job) => formatMonthKey(job.date) === monthKey);
+  const profitJobs = jobs.filter((job) => job.grossProfit > 0);
+  const lossJobs = jobs.filter((job) => job.grossProfit < 0);
+
+  return {
+    jobs,
+    totalEnergyCost: roundCurrency(jobs.reduce((sum, job) => sum + job.energyCost, 0)),
+    totalPaintCost: roundCurrency(jobs.reduce((sum, job) => sum + (job.paintCost ?? 0), 0)),
+    totalOtherSupplyCost: roundCurrency(jobs.reduce((sum, job) => sum + (job.otherSupplyCost ?? job.supplyCost), 0)),
+    totalFinishingCost: roundCurrency(jobs.reduce((sum, job) => sum + job.finishingCost, 0)),
+    totalPackagingCost: roundCurrency(jobs.reduce((sum, job) => sum + job.packagingCost, 0)),
+    totalAdditionalManualCost: roundCurrency(jobs.reduce((sum, job) => sum + job.additionalManualCost, 0)),
+    totalFixedCost: roundCurrency(
+      jobs.reduce((sum, job) => sum + (job.fixedCostApplied ?? snapshot.operationalSettings.extraFixedCostPerProduction), 0),
+    ),
+    averageUnitCost: jobs.length
+      ? roundCurrency(jobs.reduce((sum, job) => sum + job.unitCost, 0) / jobs.length)
+      : 0,
+    profitableCount: profitJobs.length,
+    lossCount: lossJobs.length,
   };
 }
 
@@ -708,8 +1333,11 @@ export function getStoreDashboardSummary(snapshot: WorkspaceSnapshot, monthKey: 
   const jobs = snapshot.productionJobs.filter((job) => formatMonthKey(job.date) === monthKey);
   const orders = snapshot.storeOrders.filter((order) => formatMonthKey(order.date) === monthKey);
   const deliveredOrders = orders.filter((order) => order.status === "delivered");
+  const jobIds = new Set(jobs.map((job) => job.id));
   const wasteGrams = roundCurrency(
-    snapshot.productionMaterialUsages.reduce((sum, item) => sum + item.wasteQuantity, 0),
+    snapshot.productionMaterialUsages
+      .filter((item) => jobIds.has(item.productionJobId))
+      .reduce((sum, item) => sum + item.wasteQuantity, 0),
   );
   const wasteCost = roundCurrency(
     jobs.reduce((sum, item) => sum + item.wasteCost, 0),
@@ -723,6 +1351,8 @@ export function getStoreDashboardSummary(snapshot: WorkspaceSnapshot, monthKey: 
   );
   const averageMargin = totalRevenue ? roundCurrency((grossProfit / totalRevenue) * 100) : 0;
   const stock = getStoreStockSummary(snapshot);
+  const costBreakdown = getStoreProductionInsights(snapshot, monthKey);
+  const profitByProduct = getProfitByProduct(snapshot, monthKey);
 
   return {
     revenue: totalRevenue,
@@ -736,7 +1366,90 @@ export function getStoreDashboardSummary(snapshot: WorkspaceSnapshot, monthKey: 
     criticalStockCount: stock.criticalStockCount,
     recentJobs: jobs.sort((a, b) => compareDesc(parseISO(a.date), parseISO(b.date))).slice(0, 5),
     recentOrders: orders.sort((a, b) => compareDesc(parseISO(a.date), parseISO(b.date))).slice(0, 5),
+    profitableProducts: profitByProduct.filter((item) => item.grossProfit >= 0).slice(0, 5),
+    lossProducts: profitByProduct.filter((item) => item.grossProfit < 0).slice(0, 5),
+    costBreakdown,
     stock,
+  };
+}
+
+export function getStoreOperationalHighlights(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const summary = getStoreDashboardSummary(snapshot, monthKey);
+  const topWasteItems = getStoreWasteByItem(snapshot, monthKey).slice(0, 5);
+  const topFilaments = getStoreConsumptionByFilament(snapshot, monthKey).slice(0, 5);
+
+  return {
+    summary,
+    topWasteItems,
+    topFilaments,
+  };
+}
+
+export function getMotoMonthlyComparison(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const previousMonth = formatMonthKey(addMonths(parseISO(`${monthKey}-01`), -1));
+  const current = getMotoDashboardSummary(snapshot, monthKey);
+  const previous = getMotoDashboardSummary(snapshot, previousMonth);
+
+  return {
+    monthlyCost: createDeltaMetric(current.monthlyCost, previous.monthlyCost),
+    fuelCost: createDeltaMetric(current.fuelCost, previous.fuelCost),
+    liters: createDeltaMetric(current.fuelLiters, previous.fuelLiters),
+    maintenanceCost: createDeltaMetric(current.maintenanceCost, previous.maintenanceCost),
+    reminders: createDeltaMetric(current.reminders.length, previous.reminders.length),
+  };
+}
+
+export function getStoreMonthlyComparison(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const previousMonth = formatMonthKey(addMonths(parseISO(`${monthKey}-01`), -1));
+  const current = getStoreDashboardSummary(snapshot, monthKey);
+  const previous = getStoreDashboardSummary(snapshot, previousMonth);
+
+  return {
+    revenue: createDeltaMetric(current.revenue, previous.revenue),
+    cost: createDeltaMetric(current.cost, previous.cost),
+    grossProfit: createDeltaMetric(current.grossProfit, previous.grossProfit),
+    averageMargin: createDeltaMetric(current.averageMargin, previous.averageMargin),
+    wasteCost: createDeltaMetric(current.wasteCost, previous.wasteCost),
+    openOrders: createDeltaMetric(current.openOrders, previous.openOrders),
+  };
+}
+
+export function getHubExecutiveSummary(snapshot: WorkspaceSnapshot, monthKey: string) {
+  const finance = getDashboardSummary(snapshot, monthKey);
+  const moto = getMotoDashboardSummary(snapshot, monthKey);
+  const store = getStoreDashboardSummary(snapshot, monthKey);
+  const previousMonth = formatMonthKey(addMonths(parseISO(`${monthKey}-01`), -1));
+  const previousFinance = getDashboardSummary(snapshot, previousMonth);
+  const previousMoto = getMotoDashboardSummary(snapshot, previousMonth);
+  const previousStore = getStoreDashboardSummary(snapshot, previousMonth);
+  const alerts = getAlerts(snapshot, monthKey);
+  const upcoming = getUpcomingDueItems(snapshot, monthKey);
+
+  return {
+    finance,
+    moto,
+    store,
+    alerts,
+    upcoming,
+    pulse: {
+      alertCount: alerts.length,
+      criticalAlerts: alerts.filter((item) => item.tone === "critical").length,
+      upcomingDueCount: upcoming.length,
+      remindersCount: moto.reminders.length,
+      openOrders: store.openOrders,
+      criticalStockCount: store.criticalStockCount,
+    },
+    comparisons: {
+      financeProjectedBalance: createDeltaMetric(
+        finance.projectedCashBalance,
+        previousFinance.projectedCashBalance,
+      ),
+      financeInvoice: createDeltaMetric(finance.invoiceTotal, previousFinance.invoiceTotal),
+      motoCost: createDeltaMetric(moto.monthlyCost, previousMoto.monthlyCost),
+      motoLiters: createDeltaMetric(moto.fuelLiters, previousMoto.fuelLiters),
+      storeRevenue: createDeltaMetric(store.revenue, previousStore.revenue),
+      storeProfit: createDeltaMetric(store.grossProfit, previousStore.grossProfit),
+    },
   };
 }
 
@@ -745,13 +1458,26 @@ export function getProfitByProduct(snapshot: WorkspaceSnapshot, monthKey?: strin
     monthKey ? formatMonthKey(order.date) === monthKey : true,
   );
 
-  return orders
-    .map((order) => ({
+  const grouped = orders.reduce<
+    Record<string, { productName: string; grossProfit: number; totalPrice: number }>
+  >((acc, order) => {
+    const current = acc[order.productName] ?? {
       productName: order.productName,
-      grossProfit: order.grossProfit,
-      totalPrice: order.totalPrice,
-      marginPercent: order.totalPrice
-        ? roundCurrency((order.grossProfit / order.totalPrice) * 100)
+      grossProfit: 0,
+      totalPrice: 0,
+    };
+
+    current.grossProfit = roundCurrency(current.grossProfit + order.grossProfit);
+    current.totalPrice = roundCurrency(current.totalPrice + order.totalPrice);
+    acc[order.productName] = current;
+    return acc;
+  }, {});
+
+  return Object.values(grouped)
+    .map((item) => ({
+      ...item,
+      marginPercent: item.totalPrice
+        ? roundCurrency((item.grossProfit / item.totalPrice) * 100)
         : 0,
     }))
     .sort((a, b) => b.grossProfit - a.grossProfit);

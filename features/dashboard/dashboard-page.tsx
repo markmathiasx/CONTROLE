@@ -1,11 +1,17 @@
 "use client";
 
+import * as React from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   CalendarClock,
   CreditCard,
+  Landmark,
   PiggyBank,
+  Repeat,
+  Sparkles,
   UtensilsCrossed,
+  WalletCards,
 } from "lucide-react";
 import {
   Bar,
@@ -21,23 +27,61 @@ import {
 
 import { BudgetProgressCard } from "@/components/shared/budget-progress-card";
 import { ChartCard } from "@/components/shared/chart-card";
+import { DeltaPill } from "@/components/shared/delta-pill";
+import { EmptyState } from "@/components/shared/empty-state";
 import { InvoiceSummaryCard } from "@/components/shared/invoice-summary-card";
 import { LoadingCard } from "@/components/shared/loading-card";
 import { MonthSwitcher } from "@/components/shared/month-switcher";
 import { QuickAddWidget } from "@/components/shared/quick-add-widget";
 import { SummaryCard } from "@/components/shared/summary-card";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatCompactCurrencyBRL, formatCurrencyBRL, formatDateBR, formatMonthShortLabel } from "@/lib/formatters";
+import {
+  formatCompactCurrencyBRL,
+  formatCurrencyBRL,
+  formatDateBR,
+  formatMonthShortLabel,
+  formatPercentage,
+} from "@/lib/formatters";
 import { useFinanceStore } from "@/store/use-finance-store";
-import { getAlerts, getBudgetUsage, getDashboardSummary, getExpenseHighlights, getProjectionMonths, getUpcomingDueItems } from "@/utils/finance";
+import {
+  getAlerts,
+  getAutomationFeed,
+  getBudgetUsage,
+  getConsolidatedMonthlyTrend,
+  getDashboardSummary,
+  getExpenseHighlights,
+  getMonthlyComparisons,
+  getProjectionMonths,
+  getRecurrenceInsights,
+  getUpcomingDueItems,
+} from "@/utils/finance";
 
 export function DashboardPage() {
   const initialized = useFinanceStore((state) => state.initialized);
   const snapshot = useFinanceStore((state) => state.snapshot);
   const selectedMonth = useFinanceStore((state) => state.selectedMonth);
   const setSelectedMonth = useFinanceStore((state) => state.setSelectedMonth);
+  const metrics = React.useMemo(() => {
+    if (!snapshot) {
+      return null;
+    }
 
-  if (!initialized || !snapshot) {
+    return {
+      summary: getDashboardSummary(snapshot, selectedMonth),
+      alerts: getAlerts(snapshot, selectedMonth),
+      budgetUsage: getBudgetUsage(snapshot, selectedMonth),
+      upcoming: getUpcomingDueItems(snapshot, selectedMonth),
+      projection: getProjectionMonths(snapshot, selectedMonth, 3),
+      highlights: getExpenseHighlights(snapshot, selectedMonth),
+      automationFeed: getAutomationFeed(snapshot, selectedMonth, 6),
+      recurrenceInsights: getRecurrenceInsights(snapshot, selectedMonth),
+      monthlyComparisons: getMonthlyComparisons(snapshot, selectedMonth),
+      consolidatedTrend: getConsolidatedMonthlyTrend(snapshot, 6),
+    };
+  }, [selectedMonth, snapshot]);
+
+  if (!initialized || !snapshot || !metrics) {
     return (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }).map((_, index) => (
@@ -47,12 +91,18 @@ export function DashboardPage() {
     );
   }
 
-  const summary = getDashboardSummary(snapshot, selectedMonth);
-  const alerts = getAlerts(snapshot, selectedMonth);
-  const budgetUsage = getBudgetUsage(snapshot, selectedMonth);
-  const upcoming = getUpcomingDueItems(snapshot, selectedMonth);
-  const projection = getProjectionMonths(snapshot, selectedMonth, 3);
-  const highlights = getExpenseHighlights(snapshot, selectedMonth);
+  const {
+    summary,
+    alerts,
+    budgetUsage,
+    upcoming,
+    projection,
+    highlights,
+    automationFeed,
+    recurrenceInsights,
+    monthlyComparisons,
+    consolidatedTrend,
+  } = metrics;
 
   return (
     <div className="space-y-6">
@@ -105,6 +155,111 @@ export function DashboardPage() {
         />
       </div>
 
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Estado do mês</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {monthlyComparisons.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
+                >
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">
+                    {item.label}
+                  </p>
+                  <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                    {formatCompactCurrencyBRL(item.current)}
+                  </p>
+                  <div className="mt-3">
+                    <DeltaPill
+                      delta={item.delta}
+                      goodWhenPositive={item.id === "income" || item.id === "net"}
+                      text={`${item.delta >= 0 ? "+" : ""}${formatCompactCurrencyBRL(
+                        item.delta,
+                      )} • ${formatPercentage(item.deltaPercent)}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <WalletCards className="size-4 text-emerald-300" />
+                  <p className="text-sm font-medium text-zinc-100">Pessoal</p>
+                </div>
+                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                  {formatCurrencyBRL(summary.consolidated.personalExpense)}
+                </p>
+                <p className="mt-1 text-sm text-zinc-400">Despesas fora da operação</p>
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Landmark className="size-4 text-amber-300" />
+                  <p className="text-sm font-medium text-zinc-100">Operacional</p>
+                </div>
+                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                  {formatCurrencyBRL(summary.consolidated.operationalExpense)}
+                </p>
+                <p className="mt-1 text-sm text-zinc-400">Moto e loja sem misturar no caixa</p>
+              </div>
+
+              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <PiggyBank className="size-4 text-cyan-300" />
+                  <p className="text-sm font-medium text-zinc-100">Receita operacional</p>
+                </div>
+                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                  {formatCurrencyBRL(summary.consolidated.operationalIncome)}
+                </p>
+                <p className="mt-1 text-sm text-zinc-400">Entradas da loja reconhecidas</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <ChartCard
+          title="Saída por forma de pagamento"
+          description="Ajuda a entender o peso no caixa, no VR e no crédito."
+        >
+          {summary.spendByPaymentMethod.length ? (
+            <div className="space-y-4">
+              <div className="h-72">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={summary.spendByPaymentMethod.map((item) => ({
+                      name: item.label,
+                      total: item.total,
+                    }))}
+                    layout="vertical"
+                    margin={{ left: 8, right: 8 }}
+                  >
+                    <XAxis type="number" stroke="#71717a" />
+                    <YAxis type="category" dataKey="name" stroke="#71717a" width={72} />
+                    <Tooltip />
+                    <Bar dataKey="total" fill="#10b981" radius={[0, 14, 14, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <Button asChild variant="secondary" className="w-full rounded-2xl">
+                <Link href="/transacoes">Abrir histórico completo</Link>
+              </Button>
+            </div>
+          ) : (
+            <EmptyState
+              icon={WalletCards}
+              title="Nenhum gasto lançado"
+              description="Assim que você registrar saídas, o mix de pagamento aparece aqui."
+            />
+          )}
+        </ChartCard>
+      </div>
+
       <QuickAddWidget />
 
       {alerts.length ? (
@@ -118,7 +273,12 @@ export function DashboardPage() {
                   <AlertTriangle className="size-4" />
                 </div>
                 <div className="space-y-1">
-                  <p className="font-medium text-zinc-50">{alert.title}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-zinc-50">{alert.title}</p>
+                    <span className="rounded-full border border-white/10 bg-white/6 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+                      {alert.module}
+                    </span>
+                  </div>
                   <p className="text-sm text-zinc-400">{alert.body}</p>
                 </div>
               </CardContent>
@@ -127,54 +287,167 @@ export function DashboardPage() {
         </div>
       ) : null}
 
+      <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <ChartCard
+          title="Comparativo com o mês anterior"
+          description="Receita, despesa, saldo líquido e fatura lado a lado."
+        >
+          <div className="space-y-3">
+            {monthlyComparisons.map((item) => (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-zinc-100">{item.label}</p>
+                  <p
+                    className={`text-sm font-medium ${
+                      item.delta < 0 ? "text-emerald-300" : item.id === "income" ? "text-emerald-300" : "text-rose-300"
+                    }`}
+                  >
+                    {item.delta === 0
+                      ? "Sem mudança"
+                      : `${item.delta > 0 ? "+" : ""}${formatCurrencyBRL(item.delta)}`}
+                  </p>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-3 text-xs text-zinc-400">
+                  <div>
+                    <p>Atual</p>
+                    <p className="mt-1 font-medium text-zinc-100">
+                      {formatCurrencyBRL(item.current)}
+                    </p>
+                  </div>
+                  <div>
+                    <p>Anterior</p>
+                    <p className="mt-1 font-medium text-zinc-100">
+                      {formatCurrencyBRL(item.previous)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </ChartCard>
+
+        <ChartCard
+          title="Agenda automática"
+          description="Recorrências, manutenção e reposição que merecem atenção."
+        >
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Recorrências</p>
+                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                  {recurrenceInsights.activeRules}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Próximas</p>
+                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                  {recurrenceInsights.upcomingCount}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Encerrando</p>
+                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                  {recurrenceInsights.endingSoonCount}
+                </p>
+              </div>
+            </div>
+
+            {automationFeed.length ? (
+              automationFeed.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-start justify-between gap-3 rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-zinc-100">{item.title}</p>
+                      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-zinc-400">
+                        {item.module}
+                      </span>
+                    </div>
+                    <p className="text-sm text-zinc-400">{item.body}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {item.date ? (
+                      <p className="text-xs text-zinc-400">{formatDateBR(item.date)}</p>
+                    ) : item.dueKm ? (
+                      <p className="text-xs text-zinc-400">{item.dueKm} km</p>
+                    ) : (
+                      <Sparkles className="size-4 text-zinc-500" />
+                    )}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <EmptyState
+                icon={Repeat}
+                title="Tudo sob controle"
+                description="Nenhuma rotina importante exige atenção imediata neste período."
+              />
+            )}
+          </div>
+        </ChartCard>
+      </div>
+
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <ChartCard
           title="Categorias que mais pesaram"
           description="Visão por competência do mês selecionado."
         >
-          <div className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={summary.topCategories.map((item) => ({
-                      name: item.category?.name ?? "Categoria",
-                      value: item.total,
-                      color: item.category?.color ?? "#10b981",
-                    }))}
-                    innerRadius={56}
-                    outerRadius={80}
-                    dataKey="value"
+          {summary.topCategories.length ? (
+            <div className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={summary.topCategories.map((item) => ({
+                        name: item.category?.name ?? "Categoria",
+                        value: item.total,
+                        color: item.category?.color ?? "#10b981",
+                      }))}
+                      innerRadius={56}
+                      outerRadius={80}
+                      dataKey="value"
+                    >
+                      {summary.topCategories.map((item) => (
+                        <Cell
+                          key={item.category?.id ?? item.total}
+                          fill={item.category?.color ?? "#10b981"}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-3">
+                {summary.topCategories.map((item) => (
+                  <div
+                    key={item.category?.id ?? item.total}
+                    className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/5 px-4 py-3"
                   >
-                    {summary.topCategories.map((item) => (
-                      <Cell
-                        key={item.category?.id ?? item.total}
-                        fill={item.category?.color ?? "#10b981"}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="size-3 rounded-full"
+                        style={{ backgroundColor: item.category?.color ?? "#10b981" }}
                       />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="space-y-3">
-              {summary.topCategories.map((item) => (
-                <div
-                  key={item.category?.id ?? item.total}
-                  className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/5 px-4 py-3"
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="size-3 rounded-full"
-                      style={{ backgroundColor: item.category?.color ?? "#10b981" }}
-                    />
-                    <p className="text-sm text-zinc-200">{item.category?.name}</p>
+                      <p className="text-sm text-zinc-200">{item.category?.name}</p>
+                    </div>
+                    <p className="font-medium text-zinc-50">{formatCompactCurrencyBRL(item.total)}</p>
                   </div>
-                  <p className="font-medium text-zinc-50">{formatCompactCurrencyBRL(item.total)}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <EmptyState
+              icon={PiggyBank}
+              title="Sem gasto suficiente para ranking"
+              description="As categorias mais pesadas aparecem assim que houver movimentação no período."
+            />
+          )}
         </ChartCard>
 
         <ChartCard title="Gasto por centro" description="Quem puxou mais o mês até aqui.">
@@ -205,18 +478,26 @@ export function DashboardPage() {
             <CardTitle>Próximos vencimentos</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {upcoming.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
-              >
-                <div>
-                  <p className="font-medium text-zinc-50">{item.description}</p>
-                  <p className="text-sm text-zinc-400">{formatDateBR(item.date)}</p>
+            {upcoming.length ? (
+              upcoming.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
+                >
+                  <div>
+                    <p className="font-medium text-zinc-50">{item.description}</p>
+                    <p className="text-sm text-zinc-400">{formatDateBR(item.date)}</p>
+                  </div>
+                  <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.amount)}</p>
                 </div>
-                <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.amount)}</p>
-              </div>
-            ))}
+              ))
+            ) : (
+              <EmptyState
+                icon={CalendarClock}
+                title="Nenhum vencimento próximo"
+                description="Quando houver contas, recorrências ou faturas chegando, elas aparecem aqui."
+              />
+            )}
           </CardContent>
         </Card>
 
@@ -239,19 +520,54 @@ export function DashboardPage() {
         </ChartCard>
       </div>
 
+      <ChartCard
+        title="Consolidado dos últimos meses"
+        description="Receita, despesa operacional e saldo líquido no mesmo trilho."
+      >
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={consolidatedTrend.map((item) => ({
+                month: formatMonthShortLabel(item.month),
+                receita: item.income,
+                operacional: item.operationalExpense,
+                saldo: item.net,
+              }))}
+            >
+              <XAxis dataKey="month" stroke="#71717a" />
+              <YAxis stroke="#71717a" />
+              <Tooltip />
+              <Bar dataKey="receita" fill="#10b981" radius={[14, 14, 0, 0]} />
+              <Bar dataKey="operacional" fill="#f59e0b" radius={[14, 14, 0, 0]} />
+              <Bar dataKey="saldo" fill="#06b6d4" radius={[14, 14, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </ChartCard>
+
       <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
         <Card>
           <CardHeader>
             <CardTitle>Faturas do mês</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 md:grid-cols-2">
-            {summary.invoices.map((invoice) => (
-              <InvoiceSummaryCard
-                key={invoice.cardId}
-                invoice={invoice}
-                card={snapshot.cards.find((card) => card.id === invoice.cardId)}
-              />
-            ))}
+            {summary.invoices.length ? (
+              summary.invoices.map((invoice) => (
+                <InvoiceSummaryCard
+                  key={invoice.cardId}
+                  invoice={invoice}
+                  card={snapshot.cards.find((card) => card.id === invoice.cardId)}
+                />
+              ))
+            ) : (
+              <div className="md:col-span-2">
+                <EmptyState
+                  icon={CreditCard}
+                  title="Sem faturas neste mês"
+                  description="Compras no crédito e parcelas futuras passam a aparecer aqui automaticamente."
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -289,16 +605,31 @@ export function DashboardPage() {
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        {budgetUsage.slice(0, 6).map((item) => (
-          <BudgetProgressCard
-            key={item.budget.id}
-            title={item.category?.name ?? "Categoria"}
-            spent={item.spent}
-            limit={item.budget.limit}
-            percentage={item.percentage}
-            status={item.status}
-          />
-        ))}
+        {budgetUsage.length ? (
+          budgetUsage.slice(0, 6).map((item) => (
+            <BudgetProgressCard
+              key={item.budget.id}
+              title={item.category?.name ?? "Categoria"}
+              spent={item.spent}
+              limit={item.budget.limit}
+              percentage={item.percentage}
+              status={item.status}
+            />
+          ))
+        ) : (
+          <div className="md:col-span-2 xl:col-span-3">
+            <EmptyState
+              icon={PiggyBank}
+              title="Sem orçamentos configurados"
+              description="Crie limites por categoria para acompanhar alerta, consumo e disciplina do mês."
+              action={
+                <Button asChild variant="secondary" className="rounded-2xl">
+                  <Link href="/orcamentos">Abrir orçamentos</Link>
+                </Button>
+              }
+            />
+          </div>
+        )}
       </div>
     </div>
   );

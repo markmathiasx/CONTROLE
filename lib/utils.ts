@@ -1,5 +1,5 @@
 import { clsx, type ClassValue } from "clsx";
-import { addMonths, format } from "date-fns";
+import { addMonths, format, parseISO } from "date-fns";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -7,6 +7,10 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function createId(prefix: string) {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  }
+
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
@@ -24,7 +28,12 @@ export function normalizeText(value: string) {
 }
 
 export function formatMonthKey(date: Date | string) {
-  return format(typeof date === "string" ? new Date(date) : date, "yyyy-MM");
+  if (typeof date === "string") {
+    const parsed = parseISO(date.length === 7 ? `${date}-01` : date);
+    return format(parsed, "yyyy-MM");
+  }
+
+  return format(date, "yyyy-MM");
 }
 
 export function listMonthKeys(start: Date, count: number) {

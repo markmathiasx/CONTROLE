@@ -29,9 +29,11 @@ export function generateInstallmentsForTransaction(params: {
   card: CreditCard;
   workspaceId: string;
   createdAt?: string;
+  actorUserId?: string | null;
 }): TransactionInstallment[] {
   const { transaction, card, workspaceId } = params;
   const createdAt = params.createdAt ?? transaction.updatedAt;
+  const actorUserId = params.actorUserId ?? transaction.updatedByUserId ?? transaction.createdByUserId ?? null;
   const totalInstallments = Math.max(1, transaction.installments);
   const baseAmount = roundCurrency(transaction.amount / totalInstallments);
   const remainder = roundCurrency(transaction.amount - baseAmount * totalInstallments);
@@ -64,6 +66,8 @@ export function generateInstallmentsForTransaction(params: {
       invoiceMonth,
       dueDate: getDueDate(invoiceMonth, card.dueDay),
       transactionDate: transaction.transactionDate,
+      createdByUserId: actorUserId,
+      updatedByUserId: actorUserId,
     };
   });
 }

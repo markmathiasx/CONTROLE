@@ -17,6 +17,7 @@ import type {
   MaintenanceLogFormValues,
   ProductionJobFormValues,
   SettingsFormValues,
+  StockAdjustmentFormValues,
   StoreOrderFormValues,
   SupplyItemFormValues,
 } from "@/types/forms";
@@ -36,10 +37,20 @@ interface FinanceState {
   initialized: boolean;
   selectedMonth: string;
   snapshot: WorkspaceSnapshot | null;
+  activeWorkspaceId: string | null;
+  activeUserId: string | null;
   syncStatus: SyncStatus;
   quickAddOpen: boolean;
   moreMenuOpen: boolean;
   bootstrap: (config: RuntimeConfig) => Promise<void>;
+  hydrateWorkspace: (params: {
+    config: RuntimeConfig;
+    snapshot: WorkspaceSnapshot;
+    workspaceId: string | null;
+    userId: string | null;
+    syncStatus?: SyncStatus;
+  }) => Promise<void>;
+  clearWorkspaceState: () => void;
   setSelectedMonth: (month: string) => void;
   setQuickAddOpen: (open: boolean) => void;
   setMoreMenuOpen: (open: boolean) => void;
@@ -62,14 +73,17 @@ interface FinanceState {
   deleteMaintenanceLog: (id: string) => void;
   saveFilamentPurchase: (values: FilamentPurchaseFormValues) => void;
   saveSupplyItem: (values: SupplyItemFormValues) => void;
+  saveStockAdjustment: (values: StockAdjustmentFormValues) => void;
   saveProductionJob: (values: ProductionJobFormValues) => void;
+  deleteProductionJob: (id: string) => void;
   saveStoreOrder: (values: StoreOrderFormValues) => void;
+  deleteStoreOrder: (id: string) => void;
   importSnapshot: (snapshot: WorkspaceSnapshot | unknown) => void;
   resetWorkspace: () => void;
 }
 
 function getDefaultRuntimeConfig(): RuntimeConfig {
-  return { storageMode: "local", hasSupabase: false, hasPinLock: false };
+  return { storageMode: "local", hasSupabase: false, hasPinLock: false, hasUsernameAuth: false };
 }
 
 function cloneSnapshot(snapshot: WorkspaceSnapshot) {
@@ -113,9 +127,33 @@ function removeInstallmentsForTransaction(snapshot: WorkspaceSnapshot, transacti
   snapshot.installments = snapshot.installments.filter((item) => item.transactionId !== transactionId);
 }
 
+function resolveActorUserId(snapshot: WorkspaceSnapshot, activeUserId?: string | null) {
+  return activeUserId ?? snapshot.user.id ?? null;
+}
+
+function applyAuditFields<
+  T extends {
+    createdAt: string;
+    updatedAt: string;
+    createdByUserId?: string | null;
+    updatedByUserId?: string | null;
+  },
+>(
+  payload: T,
+  actorUserId: string | null,
+  existing?: { createdByUserId?: string | null; updatedByUserId?: string | null } | null,
+) {
+  return {
+    ...payload,
+    createdByUserId: existing?.createdByUserId ?? payload.createdByUserId ?? actorUserId,
+    updatedByUserId: actorUserId,
+  };
+}
+
 function upsertRecurrenceForEntry(
   snapshot: WorkspaceSnapshot,
   values: EntryFormValues,
+  actorUserId: string | null,
   recurrenceRuleId?: string | null,
 ) {
   const now = new Date().toISOString();
@@ -129,7 +167,8 @@ function upsertRecurrenceForEntry(
 
   const nextRuleId = recurrenceRuleId ?? createId("rec");
   const existingIndex = snapshot.recurrences.findIndex((rule) => rule.id === nextRuleId);
-  const baseRule = {
+  const existing = existingIndex >= 0 ? snapshot.recurrences[existingIndex] : null;
+  const baseRule = applyAuditFields({
     id: nextRuleId,
     workspaceId: snapshot.workspace.id,
     kind: values.kind,
@@ -146,9 +185,9 @@ function upsertRecurrenceForEntry(
     installments: values.kind === "expense" ? values.installments : null,
     incomeType: values.kind === "income" ? values.incomeType : null,
     wallet: values.kind === "income" ? values.wallet : null,
-    createdAt: now,
+    createdAt: existing?.createdAt ?? now,
     updatedAt: now,
-  };
+  }, actorUserId, existing);
 
   if (existingIndex >= 0) {
     snapshot.recurrences[existingIndex] = { ...snapshot.recurrences[existingIndex], ...baseRule, updatedAt: now };
@@ -175,6 +214,7 @@ function removeOriginTransaction(snapshot: WorkspaceSnapshot, originModule: "mot
 
 function upsertOriginExpense(
   snapshot: WorkspaceSnapshot,
+  actorUserId: string | null,
   params: {
     originModule: "moto" | "store";
     originRefId: string;
@@ -190,7 +230,7 @@ function upsertOriginExpense(
 ) {
   const now = new Date().toISOString();
   const existing = findOriginTransaction(snapshot, params.originModule, params.originRefId);
-  const payload = {
+  const payload = applyAuditFields({
     id: existing?.id ?? createId("tx"),
     workspaceId: snapshot.workspace.id,
     centerId: params.centerId,
@@ -207,7 +247,7 @@ function upsertOriginExpense(
     lockedByOrigin: true,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
-  };
+  }, actorUserId, existing);
 
   snapshot.transactions = snapshot.transactions.filter((item) => item.id !== payload.id);
   snapshot.transactions.unshift(payload);
@@ -222,6 +262,7 @@ function upsertOriginExpense(
           card,
           workspaceId: snapshot.workspace.id,
           createdAt: now,
+          actorUserId,
         }),
       );
     }
@@ -236,11 +277,12 @@ function findOriginIncome(snapshot: WorkspaceSnapshot, originRefId: string) {
 
 function upsertOriginIncome(
   snapshot: WorkspaceSnapshot,
+  actorUserId: string | null,
   params: { originRefId: string; centerId: string; description: string; amount: number; receivedAt: string },
 ) {
   const now = new Date().toISOString();
   const existing = findOriginIncome(snapshot, params.originRefId);
-  const payload = {
+  const payload = applyAuditFields({
     id: existing?.id ?? createId("income"),
     workspaceId: snapshot.workspace.id,
     centerId: params.centerId,
@@ -255,7 +297,7 @@ function upsertOriginIncome(
     lockedByOrigin: true,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
-  };
+  }, actorUserId, existing);
 
   snapshot.incomes = snapshot.incomes.filter((item) => item.id !== payload.id);
   snapshot.incomes.unshift(payload);
@@ -266,17 +308,30 @@ function removeOriginIncome(snapshot: WorkspaceSnapshot, originRefId: string) {
   snapshot.incomes = snapshot.incomes.filter((item) => !(item.originModule === "store" && item.originRefId === originRefId));
 }
 
-function syncVehicleOdometer(snapshot: WorkspaceSnapshot, vehicleId: string, odometerKm: number) {
+function recalculateVehicleOdometer(snapshot: WorkspaceSnapshot, vehicleId: string, actorUserId: string | null) {
   const vehicle = snapshot.vehicles.find((item) => item.id === vehicleId);
   if (!vehicle) {
     return;
   }
 
-  vehicle.currentOdometerKm = Math.max(vehicle.currentOdometerKm, odometerKm);
+  const latestLoggedOdometer = Math.max(
+    ...snapshot.fuelLogs
+      .filter((item) => item.vehicleId === vehicleId)
+      .map((item) => item.odometerKm),
+    ...snapshot.maintenanceLogs
+      .filter((item) => item.vehicleId === vehicleId)
+      .map((item) => item.odometerKm),
+  );
+
+  if (Number.isFinite(latestLoggedOdometer)) {
+    vehicle.currentOdometerKm = latestLoggedOdometer;
+  }
+
   vehicle.updatedAt = new Date().toISOString();
+  vehicle.updatedByUserId = actorUserId;
 }
 
-function restoreProductionInventory(snapshot: WorkspaceSnapshot, productionJobId: string) {
+function restoreProductionInventory(snapshot: WorkspaceSnapshot, productionJobId: string, actorUserId: string | null) {
   const usages = snapshot.productionMaterialUsages.filter((usage) => usage.productionJobId === productionJobId);
 
   usages.forEach((usage) => {
@@ -285,12 +340,14 @@ function restoreProductionInventory(snapshot: WorkspaceSnapshot, productionJobId
       if (spool) {
         spool.remainingWeightGrams = roundCurrency(spool.remainingWeightGrams + usage.quantity + usage.wasteQuantity);
         spool.updatedAt = new Date().toISOString();
+        spool.updatedByUserId = actorUserId;
       }
     } else {
       const supply = snapshot.supplyItems.find((item) => item.id === usage.itemId);
       if (supply) {
         supply.remainingQuantity = roundCurrency(supply.remainingQuantity + usage.quantity + usage.wasteQuantity);
         supply.updatedAt = new Date().toISOString();
+        supply.updatedByUserId = actorUserId;
       }
     }
   });
@@ -304,6 +361,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   initialized: false,
   selectedMonth: formatMonthKey(new Date()),
   snapshot: null,
+  activeWorkspaceId: null,
+  activeUserId: null,
   syncStatus: "idle",
   quickAddOpen: false,
   moreMenuOpen: false,
@@ -313,35 +372,47 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
 
     const migratedSnapshot = await localDbAdapter.migrateFromLegacyLocalStorage();
-    let snapshot = migratedSnapshot ?? (await localDbAdapter.load()) ?? createSeedSnapshot(config.storageMode);
+    let snapshot = migratedSnapshot ?? (await localDbAdapter.loadAnonymous()) ?? createSeedSnapshot(config.storageMode);
     snapshot = withStorageMode(snapshot, config);
-
-    if (config.storageMode === "supabase") {
-      const remoteSnapshot = await supabaseStorageAdapter.load(snapshot.workspace.id);
-      if (remoteSnapshot) {
-        const shouldUseRemote =
-          !snapshot.meta.dirty &&
-          (remoteSnapshot.version > snapshot.version || remoteSnapshot.meta.updatedAt > snapshot.meta.updatedAt);
-
-        if (shouldUseRemote) {
-          snapshot = withStorageMode(remoteSnapshot, config);
-          snapshot.meta.source = "remote";
-          snapshot.meta.dirty = false;
-        } else {
-          await supabaseStorageAdapter.save(snapshot.workspace.id, snapshot);
-          snapshot.meta.dirty = false;
-          snapshot.meta.lastSyncedAt = new Date().toISOString();
-        }
-      }
-    }
-
-    await localDbAdapter.save(snapshot);
+    await localDbAdapter.saveAnonymous(snapshot);
     set({
       runtimeConfig: config,
       initialized: true,
       selectedMonth: formatMonthKey(new Date()),
       snapshot,
-      syncStatus: config.storageMode === "supabase" ? "synced" : "local",
+      activeWorkspaceId: snapshot.workspace.id,
+      activeUserId: snapshot.user.id,
+      syncStatus: "local",
+    });
+  },
+  async hydrateWorkspace({ config, snapshot, workspaceId, userId, syncStatus = "synced" }) {
+    const nextSnapshot = withStorageMode(snapshot, config);
+
+    if (config.storageMode === "supabase" && workspaceId) {
+      await localDbAdapter.saveWorkspace(workspaceId, nextSnapshot);
+    } else {
+      await localDbAdapter.saveAnonymous(nextSnapshot);
+    }
+
+    set({
+      runtimeConfig: config,
+      initialized: true,
+      selectedMonth: formatMonthKey(new Date()),
+      snapshot: nextSnapshot,
+      activeWorkspaceId: workspaceId,
+      activeUserId: userId,
+      syncStatus,
+    });
+  },
+  clearWorkspaceState() {
+    set({
+      initialized: false,
+      snapshot: null,
+      activeWorkspaceId: null,
+      activeUserId: null,
+      syncStatus: "idle",
+      quickAddOpen: false,
+      moreMenuOpen: false,
     });
   },
   setSelectedMonth(month) {
@@ -357,7 +428,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     set({ syncStatus: status });
   },
   async markSynced(timestamp = new Date().toISOString()) {
-    const snapshot = get().snapshot;
+    const { snapshot, activeWorkspaceId, runtimeConfig } = get();
     if (!snapshot) {
       return;
     }
@@ -365,35 +436,45 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     const next = cloneSnapshot(snapshot);
     next.meta.dirty = false;
     next.meta.lastSyncedAt = timestamp;
-    await localDbAdapter.save(next);
+    if (runtimeConfig.storageMode === "supabase" && activeWorkspaceId) {
+      await localDbAdapter.saveWorkspace(activeWorkspaceId, next);
+    } else {
+      await localDbAdapter.saveAnonymous(next);
+    }
     set({ snapshot: next, syncStatus: "synced" });
   },
   async persistNow() {
-    const { snapshot, runtimeConfig } = get();
+    const { snapshot, runtimeConfig, activeWorkspaceId, activeUserId } = get();
     if (!snapshot) {
       return;
     }
 
-    await localDbAdapter.save(snapshot);
-    if (runtimeConfig.storageMode === "supabase") {
+    if (runtimeConfig.storageMode === "supabase" && activeWorkspaceId) {
+      await localDbAdapter.saveWorkspace(activeWorkspaceId, snapshot);
       set({ syncStatus: "syncing" });
       try {
-        await supabaseStorageAdapter.save(snapshot.workspace.id, snapshot);
+        if (!activeUserId) {
+          throw new Error("Usuário autenticado não encontrado.");
+        }
+        await supabaseStorageAdapter.save(activeWorkspaceId, snapshot, activeUserId);
         await get().markSynced();
       } catch {
         set({ syncStatus: "error" });
       }
     } else {
+      await localDbAdapter.saveAnonymous(snapshot);
       set({ syncStatus: "local" });
     }
   },
   saveEntry(values) {
     const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
     const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
       const recurrenceRuleId = upsertRecurrenceForEntry(
         draft,
         values,
+        actorUserId,
         values.id
           ? values.kind === "expense"
             ? draft.transactions.find((item) => item.id === values.id)?.recurrenceRuleId
@@ -404,7 +485,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       if (values.kind === "expense") {
         const existingIndex = values.id ? draft.transactions.findIndex((item) => item.id === values.id) : -1;
         const existing = existingIndex >= 0 ? draft.transactions[existingIndex] : null;
-        const expense = {
+        const expense = applyAuditFields({
           id: values.id ?? createId("tx"),
           workspaceId: draft.workspace.id,
           centerId: values.centerId,
@@ -422,7 +503,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           lockedByOrigin: existing?.lockedByOrigin ?? false,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
-        };
+        }, actorUserId, existing);
 
         if (existingIndex >= 0) {
           draft.transactions[existingIndex] = expense;
@@ -440,6 +521,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
                 card,
                 workspaceId: draft.workspace.id,
                 createdAt: now,
+                actorUserId,
               }),
             );
           }
@@ -447,7 +529,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       } else {
         const existingIndex = values.id ? draft.incomes.findIndex((item) => item.id === values.id) : -1;
         const existing = existingIndex >= 0 ? draft.incomes[existingIndex] : null;
-        const income = {
+        const income = applyAuditFields({
           id: values.id ?? createId("income"),
           workspaceId: draft.workspace.id,
           centerId: values.centerId,
@@ -463,7 +545,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           lockedByOrigin: existing?.lockedByOrigin ?? false,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
-        };
+        }, actorUserId, existing);
 
         if (existingIndex >= 0) {
           draft.incomes[existingIndex] = income;
@@ -508,9 +590,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   saveCategory(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
-      const payload = {
+      const existing = values.id ? draft.categories.find((item) => item.id === values.id) : null;
+      const payload = applyAuditFields({
         id: values.id ?? createId("category"),
         workspaceId: draft.workspace.id,
         name: values.name,
@@ -521,9 +606,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         budgetable: values.budgetable,
         system: false,
         scope: values.scope,
-        createdAt: now,
+        createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      };
+      }, actorUserId, existing);
       const index = draft.categories.findIndex((item) => item.id === payload.id);
 
       if (index >= 0) {
@@ -539,11 +624,14 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   archiveCategory(id) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const category = draft.categories.find((item) => item.id === id);
       if (category) {
         category.archivedAt = new Date().toISOString();
         category.updatedAt = new Date().toISOString();
+        category.updatedByUserId = actorUserId;
       }
     });
 
@@ -553,9 +641,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   saveCard(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
-      const payload = {
+      const existing = values.id ? draft.cards.find((item) => item.id === values.id) : null;
+      const payload = applyAuditFields({
         id: values.id ?? createId("card"),
         workspaceId: draft.workspace.id,
         name: values.name,
@@ -567,9 +658,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         color: values.color,
         aliases: values.aliases.split(",").map((item) => item.trim()).filter(Boolean),
         active: true,
-        createdAt: now,
+        createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      };
+      }, actorUserId, existing);
       const index = draft.cards.findIndex((item) => item.id === payload.id);
 
       if (index >= 0) {
@@ -585,12 +676,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   archiveCard(id) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const card = draft.cards.find((item) => item.id === id);
       if (card) {
         card.active = false;
         card.archivedAt = new Date().toISOString();
         card.updatedAt = new Date().toISOString();
+        card.updatedByUserId = actorUserId;
       }
     });
 
@@ -600,17 +694,20 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   saveBudget(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
-      const payload = {
+      const existing = values.id ? draft.budgets.find((item) => item.id === values.id) : null;
+      const payload = applyAuditFields({
         id: values.id ?? createId("budget"),
         workspaceId: draft.workspace.id,
         categoryId: values.categoryId,
         month: values.month,
         limit: values.limit,
-        createdAt: now,
+        createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      };
+      }, actorUserId, existing);
       const index = draft.budgets.findIndex((item) => item.id === payload.id);
       if (index >= 0) {
         draft.budgets[index] = { ...draft.budgets[index], ...payload, createdAt: draft.budgets[index].createdAt };
@@ -640,7 +737,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   toggleCenterActive(centerId) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const center = draft.costCenters.find((item) => item.id === centerId);
       if (!center) {
         return;
@@ -648,6 +747,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
       center.active = !center.active;
       center.updatedAt = new Date().toISOString();
+      center.updatedByUserId = actorUserId;
       draft.settings.activeCenterIds = draft.costCenters.filter((item) => item.active).map((item) => item.id);
     });
 
@@ -660,7 +760,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     get().toggleCenterActive(centerId);
   },
   saveFuelLog(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
       const resolved = solveFuelValues({
         totalCost: values.totalCost,
@@ -669,7 +771,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       });
       const centerId = getCenterIdByKind(draft, "moto");
       const logId = values.id ?? createId("fuel");
-      const transactionId = upsertOriginExpense(draft, {
+      const transactionId = upsertOriginExpense(draft, actorUserId, {
         originModule: "moto",
         originRefId: logId,
         centerId,
@@ -680,7 +782,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         transactionDate: values.date,
       });
       const index = draft.fuelLogs.findIndex((item) => item.id === logId);
-      const payload = {
+      const existing = index >= 0 ? draft.fuelLogs[index] : null;
+      const payload = applyAuditFields({
         id: logId,
         workspaceId: draft.workspace.id,
         centerId,
@@ -694,16 +797,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         notes: values.notes || null,
         paymentMethod: values.paymentMethod,
         transactionId,
-        createdAt: index >= 0 ? draft.fuelLogs[index].createdAt : now,
+        createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      };
+      }, actorUserId, existing);
 
       if (index >= 0) {
         draft.fuelLogs[index] = payload;
       } else {
         draft.fuelLogs.unshift(payload);
       }
-      syncVehicleOdometer(draft, values.vehicleId, values.odometerKm);
+      recalculateVehicleOdometer(draft, values.vehicleId, actorUserId);
     });
 
     if (next) {
@@ -712,9 +815,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   deleteFuelLog(id) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
+      const removed = draft.fuelLogs.find((item) => item.id === id);
       draft.fuelLogs = draft.fuelLogs.filter((item) => item.id !== id);
       removeOriginTransaction(draft, "moto", id);
+      if (removed) {
+        recalculateVehicleOdometer(draft, removed.vehicleId, actorUserId);
+      }
     });
     if (next) {
       set({ snapshot: next });
@@ -722,11 +831,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   saveMaintenanceLog(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
       const centerId = getCenterIdByKind(draft, "moto");
       const logId = values.id ?? createId("maint");
-      const transactionId = upsertOriginExpense(draft, {
+      const transactionId = upsertOriginExpense(draft, actorUserId, {
         originModule: "moto",
         originRefId: logId,
         centerId,
@@ -737,7 +848,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         transactionDate: values.date,
       });
       const index = draft.maintenanceLogs.findIndex((item) => item.id === logId);
-      const payload = {
+      const existing = index >= 0 ? draft.maintenanceLogs[index] : null;
+      const payload = applyAuditFields({
         id: logId,
         workspaceId: draft.workspace.id,
         centerId,
@@ -752,17 +864,18 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         notes: values.notes || null,
         recurringMonths: values.recurringMonths || null,
         recurringKm: values.recurringKm || null,
+        paymentMethod: values.paymentMethod,
         transactionId,
-        createdAt: index >= 0 ? draft.maintenanceLogs[index].createdAt : now,
+        createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      };
+      }, actorUserId, existing);
 
       if (index >= 0) {
         draft.maintenanceLogs[index] = payload;
       } else {
         draft.maintenanceLogs.unshift(payload);
       }
-      syncVehicleOdometer(draft, values.vehicleId, values.odometerKm);
+      recalculateVehicleOdometer(draft, values.vehicleId, actorUserId);
     });
     if (next) {
       set({ snapshot: next });
@@ -770,9 +883,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   deleteMaintenanceLog(id) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
+      const removed = draft.maintenanceLogs.find((item) => item.id === id);
       draft.maintenanceLogs = draft.maintenanceLogs.filter((item) => item.id !== id);
       removeOriginTransaction(draft, "moto", id);
+      if (removed) {
+        recalculateVehicleOdometer(draft, removed.vehicleId, actorUserId);
+      }
     });
     if (next) {
       set({ snapshot: next });
@@ -780,7 +899,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   saveFilamentPurchase(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
       const centerId = getCenterIdByKind(draft, "store");
       const batchId = createId("stock_batch_filament");
@@ -792,11 +913,12 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
 
       Array.from({ length: Math.max(1, values.spoolCount) }, (_, index) => {
         const spoolId = createId("spool");
-        draft.filamentSpools.unshift({
+        const spoolName = `${values.material} ${values.color}${values.spoolCount > 1 ? ` #${index + 1}` : ""}`;
+        draft.filamentSpools.unshift(applyAuditFields({
           id: spoolId,
           workspaceId: draft.workspace.id,
           centerId,
-          name: `${values.material} ${values.color}${values.spoolCount > 1 ? ` #${index + 1}` : ""}`,
+          name: spoolName,
           material: values.material,
           color: values.color,
           brand: values.brand,
@@ -810,13 +932,15 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           notes: values.notes || null,
           createdAt: now,
           updatedAt: now,
-        });
-        draft.stockMovements.unshift({
+        }, actorUserId));
+        draft.stockMovements.unshift(applyAuditFields({
           id: createId("move"),
           workspaceId: draft.workspace.id,
           centerId,
           itemKind: "filament",
           itemId: spoolId,
+          itemName: spoolName,
+          itemCategory: `${values.material} • ${values.color}`,
           movementKind: "purchase",
           quantity: split.nominalWeightGrams,
           unitCost: split.costPerGram,
@@ -825,10 +949,10 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           notes: `Compra agrupada ${batchId}`,
           createdAt: now,
           updatedAt: now,
-        });
+        }, actorUserId));
       });
 
-      upsertOriginExpense(draft, {
+      upsertOriginExpense(draft, actorUserId, {
         originModule: "store",
         originRefId: batchId,
         centerId,
@@ -845,13 +969,16 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   saveSupplyItem(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
       const centerId = getCenterIdByKind(draft, "store");
       const unitCost = roundCurrency(values.totalCost / values.totalQuantity);
       const itemId = values.id ?? createId("supply");
       const index = draft.supplyItems.findIndex((item) => item.id === itemId);
-      const payload = {
+      const existing = index >= 0 ? draft.supplyItems[index] : null;
+      const payload = applyAuditFields({
         id: itemId,
         workspaceId: draft.workspace.id,
         centerId,
@@ -859,25 +986,30 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         category: values.category,
         unit: values.unit,
         totalQuantity: values.totalQuantity,
-        remainingQuantity: index >= 0 ? draft.supplyItems[index].remainingQuantity : values.totalQuantity,
+        remainingQuantity:
+          index >= 0
+            ? Math.min(draft.supplyItems[index].remainingQuantity, values.totalQuantity)
+            : values.totalQuantity,
         totalCost: values.totalCost,
         unitCost,
         purchaseDate: values.purchaseDate,
         notes: values.notes || null,
-        createdAt: index >= 0 ? draft.supplyItems[index].createdAt : now,
+        createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      };
+      }, actorUserId, existing);
 
       if (index >= 0) {
         draft.supplyItems[index] = payload;
       } else {
         draft.supplyItems.unshift(payload);
-        draft.stockMovements.unshift({
+        draft.stockMovements.unshift(applyAuditFields({
           id: createId("move"),
           workspaceId: draft.workspace.id,
           centerId,
           itemKind: "supply",
           itemId,
+          itemName: values.name,
+          itemCategory: values.category,
           movementKind: "purchase",
           quantity: values.totalQuantity,
           unitCost,
@@ -886,10 +1018,10 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           notes: values.notes || null,
           createdAt: now,
           updatedAt: now,
-        });
+        }, actorUserId));
       }
 
-      upsertOriginExpense(draft, {
+      upsertOriginExpense(draft, actorUserId, {
         originModule: "store",
         originRefId: `supply_purchase_${itemId}`,
         centerId,
@@ -905,14 +1037,100 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       void get().persistNow();
     }
   },
+  saveStockAdjustment(values) {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
+      const now = new Date().toISOString();
+      const centerId = getCenterIdByKind(draft, "store");
+      if (values.quantityDelta === 0) {
+        throw new Error("Informe um ajuste diferente de zero.");
+      }
+
+      if (values.itemKind === "filament") {
+        const spool = draft.filamentSpools.find((item) => item.id === values.itemId);
+        if (!spool) {
+          throw new Error("Filamento não encontrado.");
+        }
+
+        const nextRemaining = roundCurrency(spool.remainingWeightGrams + values.quantityDelta);
+        if (nextRemaining < 0) {
+          throw new Error(`O ajuste deixaria ${spool.name} com estoque negativo.`);
+        }
+
+        spool.remainingWeightGrams = nextRemaining;
+        spool.updatedAt = now;
+        spool.updatedByUserId = actorUserId;
+
+        draft.stockMovements.unshift(applyAuditFields({
+          id: createId("move"),
+          workspaceId: draft.workspace.id,
+          centerId,
+          itemKind: "filament",
+          itemId: spool.id,
+          itemName: spool.name,
+          itemCategory: `${spool.material} • ${spool.color}`,
+          movementKind: "adjustment",
+          quantity: roundCurrency(values.quantityDelta),
+          unitCost: spool.costPerGram,
+          totalCost: roundCurrency(values.quantityDelta * spool.costPerGram),
+          occurredAt: values.occurredAt,
+          notes: values.notes || null,
+          createdAt: now,
+          updatedAt: now,
+        }, actorUserId));
+
+        return;
+      }
+
+      const supply = draft.supplyItems.find((item) => item.id === values.itemId);
+      if (!supply) {
+        throw new Error("Insumo não encontrado.");
+      }
+
+      const nextRemaining = roundCurrency(supply.remainingQuantity + values.quantityDelta);
+      if (nextRemaining < 0) {
+        throw new Error(`O ajuste deixaria ${supply.name} com estoque negativo.`);
+      }
+
+      supply.remainingQuantity = nextRemaining;
+      supply.updatedAt = now;
+      supply.updatedByUserId = actorUserId;
+
+      draft.stockMovements.unshift(applyAuditFields({
+        id: createId("move"),
+        workspaceId: draft.workspace.id,
+        centerId,
+        itemKind: "supply",
+        itemId: supply.id,
+        itemName: supply.name,
+        itemCategory: supply.category,
+        movementKind: "adjustment",
+        quantity: roundCurrency(values.quantityDelta),
+        unitCost: supply.unitCost,
+        totalCost: roundCurrency(values.quantityDelta * supply.unitCost),
+        occurredAt: values.occurredAt,
+        notes: values.notes || null,
+        createdAt: now,
+        updatedAt: now,
+      }, actorUserId));
+    });
+
+    if (next) {
+      set({ snapshot: next });
+      void get().persistNow();
+    }
+  },
   saveProductionJob(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
       const centerId = getCenterIdByKind(draft, "store");
       const jobId = values.id ?? createId("production");
       const existing = draft.productionJobs.find((item) => item.id === jobId);
       if (existing) {
-        restoreProductionInventory(draft, jobId);
+        restoreProductionInventory(draft, jobId, actorUserId);
       }
 
       const usages = values.materials.map((material) => {
@@ -927,20 +1145,22 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           }
           spool.remainingWeightGrams = roundCurrency(spool.remainingWeightGrams - totalToConsume);
           spool.updatedAt = now;
-          return {
+          spool.updatedByUserId = actorUserId;
+          return applyAuditFields({
             id: createId("usage"),
             workspaceId: draft.workspace.id,
             productionJobId: jobId,
             itemKind: "filament" as const,
             itemId: spool.id,
             itemName: spool.name,
+            itemCategory: `${spool.material} • ${spool.color}`,
             quantity: material.quantity,
             wasteQuantity: material.wasteQuantity ?? 0,
             unitCost: getItemUnitCost(spool),
             totalCost: roundCurrency(totalToConsume * getItemUnitCost(spool)),
             createdAt: now,
             updatedAt: now,
-          };
+          }, actorUserId);
         }
 
         const supply = draft.supplyItems.find((item) => item.id === material.itemId);
@@ -953,20 +1173,22 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         }
         supply.remainingQuantity = roundCurrency(supply.remainingQuantity - totalToConsume);
         supply.updatedAt = now;
-        return {
+        supply.updatedByUserId = actorUserId;
+        return applyAuditFields({
           id: createId("usage"),
           workspaceId: draft.workspace.id,
           productionJobId: jobId,
           itemKind: "supply" as const,
           itemId: supply.id,
           itemName: supply.name,
+          itemCategory: supply.category,
           quantity: material.quantity,
           wasteQuantity: material.wasteQuantity ?? 0,
           unitCost: getItemUnitCost(supply),
           totalCost: roundCurrency(totalToConsume * getItemUnitCost(supply)),
           createdAt: now,
           updatedAt: now,
-        };
+        }, actorUserId);
       });
 
       usages.forEach((usage) => {
@@ -975,6 +1197,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
           centerId,
           itemKind: usage.itemKind,
           itemId: usage.itemId,
+          itemName: usage.itemName,
+          itemCategory: usage.itemCategory ?? null,
           occurredAt: values.date,
           relatedProductionJobId: jobId,
           createdAt: now,
@@ -982,7 +1206,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         };
 
         if (usage.quantity > 0) {
-          draft.stockMovements.unshift({
+          draft.stockMovements.unshift(applyAuditFields({
             id: createId("move"),
             ...baseMovement,
             movementKind: "consume",
@@ -990,11 +1214,11 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
             unitCost: usage.unitCost,
             totalCost: roundCurrency(usage.quantity * usage.unitCost),
             notes: values.name,
-          });
+          }, actorUserId));
         }
 
         if (usage.wasteQuantity > 0) {
-          draft.stockMovements.unshift({
+          draft.stockMovements.unshift(applyAuditFields({
             id: createId("move"),
             ...baseMovement,
             movementKind: "waste",
@@ -1002,7 +1226,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
             unitCost: usage.unitCost,
             totalCost: roundCurrency(usage.wasteQuantity * usage.unitCost),
             notes: values.name,
-          });
+          }, actorUserId));
         }
       });
 
@@ -1022,7 +1246,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       });
 
       draft.productionJobs = draft.productionJobs.filter((item) => item.id !== jobId);
-      draft.productionJobs.unshift({
+      draft.productionJobs.unshift(applyAuditFields({
         id: jobId,
         workspaceId: draft.workspace.id,
         centerId,
@@ -1043,14 +1267,45 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         materialCost: metrics.materialCost,
         wasteCost: metrics.wasteCost,
         supplyCost: metrics.supplyCost,
+        paintCost: metrics.paintCost,
+        otherSupplyCost: metrics.otherSupplyCost,
         finishingCost: metrics.finishingCost,
+        fixedCostApplied: metrics.fixedCostApplied,
         totalCost: metrics.totalCost,
         unitCost: metrics.unitCost,
         grossProfit: metrics.grossProfit,
         marginPercent: metrics.marginPercent,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      });
+      }, actorUserId, existing));
+    });
+
+    if (next) {
+      set({ snapshot: next });
+      void get().persistNow();
+    }
+  },
+  deleteProductionJob(id) {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
+      const existing = draft.productionJobs.find((item) => item.id === id);
+      if (!existing) {
+        return;
+      }
+
+      restoreProductionInventory(draft, id, actorUserId);
+      draft.productionJobs = draft.productionJobs.filter((item) => item.id !== id);
+      draft.storeOrders = draft.storeOrders.map((order) =>
+        order.linkedProductionJobId === id
+          ? {
+              ...order,
+              linkedProductionJobId: null,
+              updatedAt: new Date().toISOString(),
+              updatedByUserId: actorUserId,
+            }
+          : order,
+      );
     });
 
     if (next) {
@@ -1059,7 +1314,9 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     }
   },
   saveStoreOrder(values) {
-    const next = updateSnapshot(get().snapshot, (draft) => {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
       const now = new Date().toISOString();
       const centerId = getCenterIdByKind(draft, "store");
       const orderId = values.id ?? createId("order");
@@ -1070,7 +1327,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       const existing = draft.storeOrders.find((item) => item.id === orderId);
       const incomeId =
         values.status === "delivered"
-          ? upsertOriginIncome(draft, {
+          ? upsertOriginIncome(draft, actorUserId, {
               originRefId: orderId,
               centerId,
               description: `Pedido entregue - ${values.productName}`,
@@ -1084,7 +1341,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       }
 
       draft.storeOrders = draft.storeOrders.filter((item) => item.id !== orderId);
-      draft.storeOrders.unshift({
+      draft.storeOrders.unshift(applyAuditFields({
         id: orderId,
         workspaceId: draft.workspace.id,
         centerId,
@@ -1102,7 +1359,19 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
         incomeId: incomeId ?? null,
         createdAt: existing?.createdAt ?? now,
         updatedAt: now,
-      });
+      }, actorUserId, existing));
+    });
+
+    if (next) {
+      set({ snapshot: next });
+      void get().persistNow();
+    }
+  },
+  deleteStoreOrder(id) {
+    const current = get().snapshot;
+    const next = updateSnapshot(current, (draft) => {
+      draft.storeOrders = draft.storeOrders.filter((item) => item.id !== id);
+      removeOriginIncome(draft, id);
     });
 
     if (next) {
@@ -1120,7 +1389,19 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   },
   resetWorkspace() {
     const runtimeConfig = get().runtimeConfig;
-    const snapshot = createSeedSnapshot(runtimeConfig.storageMode);
+    const currentSnapshot = get().snapshot;
+    const snapshot =
+      runtimeConfig.storageMode === "supabase" && currentSnapshot
+        ? createSeedSnapshot({
+            storageMode: runtimeConfig.storageMode,
+            workspaceId: currentSnapshot.workspace.id,
+            workspaceName: currentSnapshot.workspace.name,
+            userId: currentSnapshot.user.id,
+            username: currentSnapshot.user.username,
+            displayName: currentSnapshot.user.displayName,
+            email: currentSnapshot.user.email,
+          })
+        : createSeedSnapshot(runtimeConfig.storageMode);
     set({
       snapshot,
       selectedMonth: formatMonthKey(new Date()),

@@ -4,7 +4,7 @@ import { parseWorkspaceSnapshot } from "@/lib/snapshot-migrations";
 import { createSeedSnapshot } from "@/utils/seed";
 
 describe("snapshot migrations", () => {
-  it("migra snapshot legado v1 para cost centers e schema v2", () => {
+  it("migra snapshot legado v1 para cost centers e schema v3", () => {
     const seeded = createSeedSnapshot("local");
     const legacy = {
       ...seeded,
@@ -68,9 +68,11 @@ describe("snapshot migrations", () => {
     delete (legacy as Record<string, unknown>).costCenters;
     const parsed = parseWorkspaceSnapshot(legacy);
 
-    expect(parsed.meta.schemaVersion).toBe(2);
+    expect(parsed.meta.schemaVersion).toBe(3);
     expect(parsed.costCenters).toHaveLength(5);
     expect(parsed.transactions[0]).toHaveProperty("centerId");
     expect(parsed.incomes[0]).toHaveProperty("centerId");
+    expect(parsed.user).toHaveProperty("username");
+    expect(parsed.meta).toHaveProperty("migrationOrigin");
   });
 });

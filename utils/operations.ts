@@ -7,6 +7,32 @@ import type {
   FilamentSpool,
 } from "@/types/domain";
 
+const paintSupplyCategoryKeywords = [
+  "tinta",
+  "primer",
+  "verniz",
+  "lixa",
+  "fita",
+  "pincel",
+  "solvente",
+  "cola",
+  "acabamento",
+  "pintura",
+];
+
+function normalizeCategory(value?: string | null) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+export function isPaintSupplyCategory(category?: string | null) {
+  const normalized = normalizeCategory(category);
+  return paintSupplyCategoryKeywords.some((keyword) => normalized.includes(keyword));
+}
+
 export function solveFuelValues(params: {
   totalCost?: number;
   pricePerLiter: number;
@@ -91,6 +117,12 @@ export function calculateProductionMetrics(params: {
     ),
   );
   const supplyCost = roundCurrency(sumUsageCost(supplyUsage, "supply"));
+  const paintCost = roundCurrency(
+    supplyUsage
+      .filter((usage) => isPaintSupplyCategory(usage.itemCategory))
+      .reduce((sum, usage) => sum + usage.totalCost, 0),
+  );
+  const otherSupplyCost = roundCurrency(supplyCost - paintCost);
   const energyCost = roundCurrency(
     (params.settings.printerPowerWatts / 1000) *
       params.printHours *
@@ -98,6 +130,13 @@ export function calculateProductionMetrics(params: {
   );
   const finishingCost = roundCurrency(
     params.finishingHours * params.settings.manualLaborRatePerHour,
+  );
+  const fixedCostApplied = roundCurrency(params.settings.extraFixedCostPerProduction);
+  const totalMaterialQuantity = roundCurrency(
+    filamentUsage.reduce((sum, usage) => sum + usage.quantity, 0),
+  );
+  const totalWasteQuantity = roundCurrency(
+    filamentUsage.reduce((sum, usage) => sum + usage.wasteQuantity, 0),
   );
   const totalCost = roundCurrency(
     materialCost +
@@ -107,7 +146,7 @@ export function calculateProductionMetrics(params: {
       finishingCost +
       params.additionalManualCost +
       params.packagingCost +
-      params.settings.extraFixedCostPerProduction,
+      fixedCostApplied,
   );
   const unitCost = params.quantityProduced
     ? roundCurrency(totalCost / params.quantityProduced)
@@ -122,13 +161,18 @@ export function calculateProductionMetrics(params: {
     materialCost,
     wasteCost,
     supplyCost,
+    paintCost,
+    otherSupplyCost,
     energyCost,
     finishingCost,
+    fixedCostApplied,
     totalCost,
     unitCost,
     recognizedCost,
     grossProfit,
     marginPercent,
+    totalMaterialQuantity,
+    totalWasteQuantity,
   };
 }
 

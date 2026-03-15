@@ -30,5 +30,9 @@ export function verifyPinCookieValue(value?: string | null) {
   }
 
   const expected = sign(payload);
+  if (signature.length !== expected.length) {
+    return false;
+  }
+
   return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 }

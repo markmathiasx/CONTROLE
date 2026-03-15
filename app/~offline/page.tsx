@@ -12,7 +12,10 @@ export default function OfflinePage() {
         </div>
         <h1 className="font-heading text-2xl font-semibold text-zinc-50">Sem conexão agora</h1>
         <p className="mt-2 text-sm text-zinc-400">
-          O app continua funcionando com o último snapshot salvo localmente. Assim que a internet voltar, recarregue para sincronizar.
+          O app continua funcionando com o último snapshot salvo localmente. Você ainda consegue consultar dados, registrar mudanças e continuar usando o app no celular.
+        </p>
+        <p className="mt-2 text-sm text-zinc-500">
+          Quando a conexão voltar, o cache local volta a falar com a nuvem automaticamente.
         </p>
         <Button asChild className="mt-6">
           <Link href="/">Voltar ao app</Link>

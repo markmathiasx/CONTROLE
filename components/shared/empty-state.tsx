@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -6,10 +7,12 @@ export function EmptyState({
   icon: Icon,
   title,
   description,
+  action,
 }: {
   icon: LucideIcon;
   title: string;
   description: string;
+  action?: ReactNode;
 }) {
   return (
     <Card>
@@ -21,6 +24,7 @@ export function EmptyState({
           <h3 className="font-heading text-lg font-semibold text-zinc-50">{title}</h3>
           <p className="text-sm text-zinc-400">{description}</p>
         </div>
+        {action ? <div className="pt-1">{action}</div> : null}
       </CardContent>
     </Card>
   );
