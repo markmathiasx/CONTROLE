@@ -133,7 +133,7 @@ Esse modo é ideal para começar imediatamente ou usar offline, mas os dados fic
 
 Se `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` estiverem configuradas:
 
-- `/` vira entry pública com login/cadastro
+- o acesso ao app passa a exigir conta (`/` redireciona para `/login` sem sessão)
 - o usuário autenticado recebe um workspace pessoal automaticamente
 - o app sincroniza o snapshot do workspace com o Supabase
 - o cache local continua existindo para velocidade e recuperação
@@ -210,6 +210,8 @@ Rotas públicas de autenticação:
 - `/api/auth/login`
 - `/api/auth/signup`
 - `/api/auth/logout`
+
+No modo nuvem, o uso do hub sem login é bloqueado por proteção de rotas (proxy + checagem server-side da home).
 
 As telas públicas de autenticação mostram explicitamente se o ambiente está em `Modo local` ou `Modo nuvem`, para deixar claro quando o login está ativo ou quando o app continua rodando só no dispositivo.
 

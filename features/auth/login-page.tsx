@@ -107,7 +107,11 @@ export function LoginPage() {
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
                 Este ambiente está em modo local. Configure o Supabase para usar login e sincronização.
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm text-cyan-100">
+                Conta obrigatória neste ambiente: crie seu usuário em <Link href="/cadastro" className="font-semibold underline underline-offset-4">/cadastro</Link> para acessar o hub.
+              </div>
+            )}
 
             {authError ? (
               <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 p-4 text-sm text-rose-100">

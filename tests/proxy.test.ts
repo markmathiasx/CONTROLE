@@ -67,6 +67,20 @@ describe("proxy auth guard", () => {
     expect(redirectUrl.searchParams.get("next")).toBe("/financeiro?mes=2026-03");
   });
 
+  it("redireciona raiz para /login quando nuvem está ativa sem sessão", async () => {
+    mocks.createServerClient.mockReturnValue(createSupabaseClient(null));
+
+    const response = await proxy(new NextRequest("http://localhost/"));
+    const location = response.headers.get("location");
+
+    expect(response.status).toBeGreaterThanOrEqual(300);
+    expect(location).not.toBeNull();
+
+    const redirectUrl = new URL(location!);
+    expect(redirectUrl.pathname).toBe("/login");
+    expect(redirectUrl.searchParams.get("next")).toBe("/");
+  });
+
   it("redireciona usuário autenticado para / ao abrir /login", async () => {
     mocks.createServerClient.mockReturnValue(createSupabaseClient({ id: "user_1" }));
 

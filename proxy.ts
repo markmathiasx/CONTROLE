@@ -39,11 +39,7 @@ function isPrefixed(pathname: string, prefixes: readonly string[]) {
 }
 
 function requiresInternalAuth(pathname: string) {
-  if (pathname === "/") {
-    return false;
-  }
-
-  return isPrefixed(pathname, protectedPrefixes);
+  return pathname === "/" || isPrefixed(pathname, protectedPrefixes);
 }
 
 function requiresPin(pathname: string, hasCloud: boolean) {
@@ -84,44 +80,16 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname === "/" || isPrefixed(pathname, [...basePublicPrefixes, ...authPublicPrefixes])) {
-    const response = NextResponse.next();
-    if (!publicEnv) {
-      return response;
-    }
-    const supabase = createServerClient(
-      publicEnv.url,
-      publicEnv.anonKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll().map(({ name, value }) => ({ name, value }));
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              request.cookies.set(name, value);
-              response.cookies.set(name, value, options);
-            });
-          },
-        },
-      },
-    );
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user && isPrefixed(pathname, authRedirectPrefixes)) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      url.search = "";
-      return NextResponse.redirect(url);
-    }
-
-    return response;
+  if (isPrefixed(pathname, basePublicPrefixes)) {
+    return NextResponse.next();
   }
 
-  if (!requiresInternalAuth(pathname)) {
+  const shouldCheckAuthSession =
+    pathname === "/" ||
+    isPrefixed(pathname, authPublicPrefixes) ||
+    requiresInternalAuth(pathname);
+
+  if (!shouldCheckAuthSession) {
     return NextResponse.next();
   }
 
@@ -150,6 +118,24 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (user && isPrefixed(pathname, authRedirectPrefixes)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
+  if (!user && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.searchParams.set("next", "/");
+    return NextResponse.redirect(url);
+  }
+
+  if (isPrefixed(pathname, authPublicPrefixes)) {
+    return response;
+  }
 
   if (user) {
     return response;
