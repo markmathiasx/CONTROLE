@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Droplets, Fuel, GaugeCircle, Receipt, Route } from "lucide-react";
+import { Bike, CarFront, Droplets, Fuel, GaugeCircle, Plus, Receipt, Route } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,12 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { MonthSwitcher } from "@/components/shared/month-switcher";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SummaryCard } from "@/components/shared/summary-card";
-import { paymentMethodLabels } from "@/lib/constants";
+import {
+  getVehiclePresetOptions,
+  vehiclePresetYearOptions,
+  vehicleTypeLabels,
+  paymentMethodLabels,
+} from "@/lib/constants";
 import { formatCurrencyBRL, formatDateBR } from "@/lib/formatters";
 import { formatMonthKey } from "@/lib/utils";
 import { useFinanceStore } from "@/store/use-finance-store";
@@ -254,15 +259,29 @@ export function FuelPage() {
   const selectedMonth = useFinanceStore((state) => state.selectedMonth);
   const setSelectedMonth = useFinanceStore((state) => state.setSelectedMonth);
   const saveFuelLog = useFinanceStore((state) => state.saveFuelLog);
+  const saveVehicle = useFinanceStore((state) => state.saveVehicle);
   const deleteFuelLog = useFinanceStore((state) => state.deleteFuelLog);
   const [form, setForm] = React.useState(initialForm);
   const [editingForm, setEditingForm] = React.useState<FuelFormState | null>(null);
+  const [presetSheetOpen, setPresetSheetOpen] = React.useState(false);
+  const [presetTypeFilter, setPresetTypeFilter] = React.useState<"all" | "car" | "motorcycle">("all");
+  const [presetYearFilter, setPresetYearFilter] = React.useState<number | "all">(new Date().getFullYear());
+  const [presetQuery, setPresetQuery] = React.useState("");
   const [filters, setFilters] = React.useState<FuelFilters>({
     month: selectedMonth,
     vehicleId: "",
     paymentMethod: "all",
     station: "all",
   });
+  const filteredPresets = React.useMemo(
+    () =>
+      getVehiclePresetOptions({
+        vehicleType: presetTypeFilter,
+        year: presetYearFilter,
+        query: presetQuery,
+      }),
+    [presetQuery, presetTypeFilter, presetYearFilter],
+  );
 
   React.useEffect(() => {
     setFilters((current) => ({ ...current, month: selectedMonth }));
@@ -291,13 +310,175 @@ export function FuelPage() {
     return <PageSkeleton cards={4} rows={3} />;
   }
 
+  function addVehicleFromPreset(presetId: string) {
+    const preset = filteredPresets.find((item) => item.id === presetId);
+    if (!preset) {
+      toast.error("Preset não encontrado.");
+      return;
+    }
+
+    const currentYear = new Date().getFullYear();
+    const suggestedYear = preset.years.includes(currentYear)
+      ? currentYear
+      : preset.years[preset.years.length - 1] ?? currentYear;
+    const vehicleId = `vehicle_${crypto.randomUUID()}`;
+
+    saveVehicle({
+      id: vehicleId,
+      vehicleType: preset.vehicleType,
+      brand: preset.brand,
+      model: preset.model,
+      year: suggestedYear,
+      nickname: `${preset.brand} ${preset.model} ${suggestedYear}`,
+      plate: "",
+      fuelType: preset.fuelType,
+      currentOdometerKm: 0,
+      averageCityKmPerLiter: preset.averageCityKmPerLiter,
+      averageHighwayKmPerLiter: preset.averageHighwayKmPerLiter,
+      tankCapacityLiters: preset.tankCapacityLiters,
+      monthlyDistanceGoalKm: undefined,
+      fixedCosts: {
+        ipva: {
+          enabled: preset.fixedCosts.ipva.enabled,
+          amount: preset.fixedCosts.ipva.amount,
+          dueMonth: preset.fixedCosts.ipva.dueMonth,
+          dueDay: preset.fixedCosts.ipva.dueDay,
+          notes: "",
+        },
+        insurance: {
+          enabled: preset.fixedCosts.insurance.enabled,
+          amount: preset.fixedCosts.insurance.amount,
+          dueMonth: preset.fixedCosts.insurance.dueMonth,
+          dueDay: preset.fixedCosts.insurance.dueDay,
+          notes: "",
+        },
+        licensing: {
+          enabled: preset.fixedCosts.licensing.enabled,
+          amount: preset.fixedCosts.licensing.amount,
+          dueMonth: preset.fixedCosts.licensing.dueMonth,
+          dueDay: preset.fixedCosts.licensing.dueDay,
+          notes: "",
+        },
+      },
+      notes: `Criado pelo catálogo popular ${suggestedYear}.`,
+    });
+
+    setForm((current) => ({
+      ...current,
+      vehicleId,
+      odometerKm: 0,
+    }));
+    setFilters((current) => ({
+      ...current,
+      vehicleId,
+      station: "all",
+    }));
+    setPresetSheetOpen(false);
+    toast.success(`${preset.label} adicionado aos seus veículos.`);
+  }
+
   if (!snapshot.vehicles.length) {
     return (
-      <EmptyState
-        icon={Fuel}
-        title="Cadastre um veículo primeiro"
-        description="Os abastecimentos precisam de um carro ou moto associado para calcular odômetro e custo real."
-      />
+      <div className="space-y-4">
+        <EmptyState
+          icon={Fuel}
+          title="Cadastre um veículo primeiro"
+          description="Os abastecimentos precisam de um carro ou moto associado para calcular odômetro e custo real."
+        />
+        <Button className="w-full rounded-2xl" onClick={() => setPresetSheetOpen(true)}>
+          <Plus className="size-4" />
+          Adicionar veículo popular
+        </Button>
+        <Sheet open={presetSheetOpen} onOpenChange={setPresetSheetOpen}>
+          <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>Catálogo popular 2016-2026</SheetTitle>
+              <SheetDescription>
+                Adicione rapidamente carros e motos populares para começar a registrar custos.
+              </SheetDescription>
+            </SheetHeader>
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select
+                    value={presetTypeFilter}
+                    onValueChange={(value) => setPresetTypeFilter(value as "all" | "car" | "motorcycle")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Carro + moto</SelectItem>
+                      <SelectItem value="car">Carro</SelectItem>
+                      <SelectItem value="motorcycle">Moto</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Ano</Label>
+                  <Select
+                    value={presetYearFilter === "all" ? "all" : String(presetYearFilter)}
+                    onValueChange={(value) =>
+                      setPresetYearFilter(value === "all" ? "all" : Number(value))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {vehiclePresetYearOptions.map((year) => (
+                        <SelectItem key={year} value={String(year)}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Busca</Label>
+                  <Input
+                    value={presetQuery}
+                    onChange={(event) => setPresetQuery(event.target.value)}
+                    placeholder="Ex.: cg, gol, hb20..."
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                {filteredPresets.slice(0, 30).map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => addVehicleFromPreset(preset.id)}
+                    className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-left transition hover:border-emerald-400/40 hover:bg-white/8"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          {preset.vehicleType === "car" ? (
+                            <CarFront className="size-4 text-cyan-300" />
+                          ) : (
+                            <Bike className="size-4 text-cyan-300" />
+                          )}
+                          <p className="font-medium text-zinc-100">{preset.label}</p>
+                        </div>
+                        <p className="text-xs text-zinc-400">
+                          {vehicleTypeLabels[preset.vehicleType]} • {preset.years[0]}-
+                          {preset.years[preset.years.length - 1]}
+                        </p>
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        {preset.averageCityKmPerLiter} km/L cidade
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
     );
   }
 
@@ -413,7 +594,13 @@ export function FuelPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Novo abastecimento</CardTitle>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardTitle>Novo abastecimento</CardTitle>
+            <Button type="button" variant="secondary" className="rounded-2xl" onClick={() => setPresetSheetOpen(true)}>
+              <Plus className="size-4" />
+              Adicionar veículo popular
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <FuelLogForm
@@ -434,6 +621,92 @@ export function FuelPage() {
           />
         </CardContent>
       </Card>
+
+      <Sheet open={presetSheetOpen} onOpenChange={setPresetSheetOpen}>
+        <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Catálogo popular 2016-2026</SheetTitle>
+            <SheetDescription>
+              Inclui carros nacionais e motos Honda/Yamaha/BMW para acelerar seu setup.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="space-y-2">
+                <Label>Tipo</Label>
+                <Select
+                  value={presetTypeFilter}
+                  onValueChange={(value) => setPresetTypeFilter(value as "all" | "car" | "motorcycle")}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Carro + moto</SelectItem>
+                    <SelectItem value="car">Carro</SelectItem>
+                    <SelectItem value="motorcycle">Moto</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Ano</Label>
+                <Select
+                  value={presetYearFilter === "all" ? "all" : String(presetYearFilter)}
+                  onValueChange={(value) => setPresetYearFilter(value === "all" ? "all" : Number(value))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {vehiclePresetYearOptions.map((year) => (
+                      <SelectItem key={year} value={String(year)}>
+                        {year}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Busca</Label>
+                <Input
+                  value={presetQuery}
+                  onChange={(event) => setPresetQuery(event.target.value)}
+                  placeholder="Ex.: cg, gol, hb20..."
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              {filteredPresets.slice(0, 40).map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => addVehicleFromPreset(preset.id)}
+                  className="w-full rounded-2xl border border-white/10 bg-white/6 px-4 py-3 text-left transition hover:border-emerald-400/40 hover:bg-white/8"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        {preset.vehicleType === "car" ? (
+                          <CarFront className="size-4 text-cyan-300" />
+                        ) : (
+                          <Bike className="size-4 text-cyan-300" />
+                        )}
+                        <p className="font-medium text-zinc-100">{preset.label}</p>
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        {vehicleTypeLabels[preset.vehicleType]} • {preset.years[0]}-
+                        {preset.years[preset.years.length - 1]}
+                      </p>
+                    </div>
+                    <p className="text-xs text-zinc-400">{preset.averageCityKmPerLiter} km/L cidade</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <Card>
         <CardHeader>
