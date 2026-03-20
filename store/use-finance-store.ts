@@ -86,7 +86,13 @@ interface FinanceState {
 }
 
 function getDefaultRuntimeConfig(): RuntimeConfig {
-  return { storageMode: "local", hasSupabase: false, hasPinLock: false, hasUsernameAuth: false };
+  return {
+    storageMode: "local",
+    hasSupabase: false,
+    hasPinLock: false,
+    hasUsernameAuth: false,
+    hasOpenAI: false,
+  };
 }
 
 function cloneSnapshot(snapshot: WorkspaceSnapshot) {

@@ -103,8 +103,8 @@ export function TransactionsPage() {
     }
   }, [initialized, snapshot, updateQuery, vehicleFilter]);
 
-  const transactionItems = snapshot?.transactions ?? [];
-  const incomeItems = snapshot?.incomes ?? [];
+  const transactionItems = React.useMemo(() => snapshot?.transactions ?? [], [snapshot]);
+  const incomeItems = React.useMemo(() => snapshot?.incomes ?? [], [snapshot]);
 
   const allEntries = React.useMemo(
     () => (snapshot ? listUnifiedEntries(snapshot, selectedMonth) : []),

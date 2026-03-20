@@ -90,7 +90,13 @@ let authListenerCleanup: (() => void) | null = null;
 let realtimeCleanup: (() => void) | null = null;
 
 function getDefaultRuntimeConfig(): RuntimeConfig {
-  return { storageMode: "local", hasSupabase: false, hasPinLock: false, hasUsernameAuth: false };
+  return {
+    storageMode: "local",
+    hasSupabase: false,
+    hasPinLock: false,
+    hasUsernameAuth: false,
+    hasOpenAI: false,
+  };
 }
 
 function mapProfile(row: ProfileRow): User {

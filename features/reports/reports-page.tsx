@@ -39,6 +39,7 @@ import {
 } from "@/lib/formatters";
 import { mergeSearchParams } from "@/lib/utils";
 import { useFinanceStore } from "@/store/use-finance-store";
+import { toast } from "sonner";
 import {
   type PrintableReportStyle,
   type ReportPeriod,
@@ -74,12 +75,23 @@ const validPeriods = new Set<ReportPeriod>(["day", "week", "month", "year"]);
 const validStyles = new Set<PrintableReportStyle>(["neutral", "economy", "operational"]);
 const validTabs = new Set(["financeiro", "moto", "loja", "consolidado"]);
 
+type AiFinancialReview = {
+  title: string;
+  overview: string;
+  riskLevel: "low" | "medium" | "high";
+  priorities: Array<{ title: string; reason: string; impact: string }>;
+  cuts: Array<{ label: string; reason: string; impact: string }>;
+  nextActions: string[];
+  caution: string;
+};
+
 export function ReportsPage() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const snapshot = useFinanceStore((state) => state.snapshot);
   const initialized = useFinanceStore((state) => state.initialized);
+  const runtimeConfig = useFinanceStore((state) => state.runtimeConfig);
   const selectedMonth = useFinanceStore((state) => state.selectedMonth);
   const setSelectedMonth = useFinanceStore((state) => state.setSelectedMonth);
   const [activeTab, setActiveTab] = React.useState(() => {
@@ -102,6 +114,8 @@ export function ReportsPage() {
       ? (value as PrintableReportStyle)
       : "neutral";
   });
+  const [aiReview, setAiReview] = React.useState<AiFinancialReview | null>(null);
+  const [aiLoading, setAiLoading] = React.useState(false);
 
   const updateQuery = React.useCallback(
     (updates: Record<string, string | null | undefined>) => {
@@ -202,6 +216,58 @@ export function ReportsPage() {
       }),
     };
   }, [printAnchorDate, printPeriod, reportStyle, selectedMonth, selectedVehicleScope, snapshot]);
+
+  const handleGenerateAiReview = React.useCallback(async () => {
+    if (!reportData) {
+      return;
+    }
+
+    if (!runtimeConfig.hasOpenAI) {
+      toast.error("A análise IA só fica disponível quando OPENAI_API_KEY estiver configurada no servidor.");
+      return;
+    }
+
+    setAiLoading(true);
+
+    try {
+      const response = await fetch("/api/ai/financial-review", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          report: reportData.printableReport,
+          monthlyComparisons: reportData.monthlyComparisons.map((item) => ({
+            label: item.label,
+            current: item.current,
+            previous: item.previous,
+            delta: item.delta,
+            deltaPercent: item.deltaPercent,
+          })),
+        }),
+      });
+
+      const payload = (await response.json()) as
+        | { ok: true; review: AiFinancialReview }
+        | { ok: false; error?: string };
+
+      if (!response.ok || !payload.ok) {
+        throw new Error(payload.ok ? "Não foi possível gerar a leitura IA." : payload.error);
+      }
+
+      setAiReview(payload.review);
+      toast.success("Leitura IA gerada.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Falha ao gerar a leitura IA.";
+      toast.error(message);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [reportData, runtimeConfig.hasOpenAI]);
+
+  React.useEffect(() => {
+    setAiReview(null);
+  }, [printAnchorDate, printPeriod, reportStyle, selectedVehicleScope]);
 
   if (!initialized || !snapshot || !reportData) {
     return <PageSkeleton cards={4} rows={3} />;
@@ -1036,6 +1102,94 @@ export function ReportsPage() {
                     </div>
                   ) : null}
                 </div>
+              </div>
+
+              <div className="space-y-4 rounded-[28px] border border-white/8 bg-white/6 p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="font-medium text-zinc-100">Leitura IA opcional</p>
+                    <p className="text-sm text-zinc-400">
+                      Gera um fechamento comentado com prioridades, cortes sugeridos e próximos passos.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    className="rounded-2xl"
+                    variant={runtimeConfig.hasOpenAI ? "default" : "secondary"}
+                    disabled={aiLoading || !runtimeConfig.hasOpenAI}
+                    onClick={() => void handleGenerateAiReview()}
+                  >
+                    {aiLoading ? "Gerando análise..." : "Gerar leitura IA"}
+                  </Button>
+                </div>
+
+                {!runtimeConfig.hasOpenAI ? (
+                  <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-zinc-400">
+                    Configure `OPENAI_API_KEY` e, se quiser, `OPENAI_RESPONSES_MODEL` no servidor para ativar esta camada.
+                  </div>
+                ) : null}
+
+                {aiReview ? (
+                  <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                    <div className="space-y-3 rounded-2xl border border-white/8 bg-black/20 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-zinc-100">{aiReview.title}</p>
+                          <p className="mt-1 text-sm text-zinc-400">{aiReview.overview}</p>
+                        </div>
+                        <Badge
+                          variant={
+                            aiReview.riskLevel === "high"
+                              ? "danger"
+                              : aiReview.riskLevel === "medium"
+                                ? "warning"
+                                : "default"
+                          }
+                        >
+                          {aiReview.riskLevel === "high"
+                            ? "Risco alto"
+                            : aiReview.riskLevel === "medium"
+                              ? "Risco médio"
+                              : "Risco baixo"}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-3">
+                        {aiReview.priorities.map((item) => (
+                          <div key={item.title} className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                            <p className="text-sm font-medium text-zinc-100">{item.title}</p>
+                            <p className="mt-1 text-sm text-zinc-400">{item.reason}</p>
+                            <p className="mt-2 text-xs uppercase tracking-[0.22em] text-zinc-500">{item.impact}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 rounded-2xl border border-white/8 bg-black/20 p-4">
+                      <p className="font-medium text-zinc-100">Cortes e próximos passos</p>
+                      {aiReview.cuts.map((item) => (
+                        <div key={item.label} className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                          <p className="text-sm font-medium text-zinc-100">{item.label}</p>
+                          <p className="mt-1 text-sm text-zinc-400">{item.reason}</p>
+                          <p className="mt-2 text-xs uppercase tracking-[0.22em] text-zinc-500">{item.impact}</p>
+                        </div>
+                      ))}
+                      <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                        <p className="text-sm font-medium text-zinc-100">Próximas ações</p>
+                        <div className="mt-2 space-y-2">
+                          {aiReview.nextActions.map((item) => (
+                            <p key={item} className="text-sm text-zinc-400">
+                              • {item}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/8 px-4 py-3 text-sm text-amber-50">
+                        {aiReview.caution}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </CardContent>
           </Card>

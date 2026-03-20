@@ -541,6 +541,7 @@ export interface RuntimeConfig {
   hasSupabase: boolean;
   hasPinLock: boolean;
   hasUsernameAuth: boolean;
+  hasOpenAI: boolean;
 }
 
 export interface SyncPayload {

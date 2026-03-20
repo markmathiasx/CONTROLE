@@ -9,6 +9,7 @@ Hub pessoal em `pt-BR` para `Financeiro`, `Moto` e `Loja`, agora com autenticaç
 - `Moto`: abastecimentos, manutenções, custo mensal e próximos cuidados
 - `Loja`: estoque de filamentos/insumos, produção, pedidos e lucro operacional
 - `Auth + Cloud`: login, cadastro, logout, sessão persistente, rotas protegidas, cache local e sync por workspace
+- `IA opcional`: leitura financeira comentada no relatório, server-side only, sem chave no client
 
 ## Stack
 
@@ -23,6 +24,7 @@ Hub pessoal em `pt-BR` para `Financeiro`, `Moto` e `Loja`, agora com autenticaç
 - Lucide Icons
 - `@ducanh2912/next-pwa`
 - Supabase Auth + Postgres + Realtime
+- OpenAI Responses API opcional para revisão financeira assistida
 - Vitest
 
 ## Arquitetura
@@ -149,6 +151,8 @@ Regras:
 - `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` são usados no browser
 - `SUPABASE_SERVICE_ROLE_KEY` fica só no server
 - `APP_LOCK_PIN` é opcional e adiciona uma trava extra ao deploy
+- `OPENAI_API_KEY` fica só no server
+- `OPENAI_RESPONSES_MODEL` é opcional e permite trocar o modelo usado na leitura IA
 
 ### 2. SQL do projeto
 
@@ -231,6 +235,37 @@ Quando você entra com `login`, o server resolve `username -> email` com seguran
 ### Logout
 
 O logout encerra a sessão real, limpa o estado local da conta e volta para `/login`.
+
+## Leitura IA opcional
+
+O relatório consolidado agora pode gerar uma leitura comentada com IA.
+
+### O que ela faz
+
+- resume o fechamento no período selecionado
+- aponta prioridades e cortes mais prováveis
+- sugere próximos passos
+- considera custo do automóvel, maior gasto e comparativo do mês
+
+### Como funciona
+
+- a UI envia apenas o resumo consolidado do relatório
+- o endpoint server-side chama a OpenAI via `Responses API`
+- a chave fica somente no servidor
+- sem `OPENAI_API_KEY`, o botão continua visível mas a função fica desativada com mensagem clara
+
+### Env da IA
+
+Adicione no servidor:
+
+```env
+OPENAI_API_KEY=
+OPENAI_RESPONSES_MODEL=gpt-5.4
+```
+
+O endpoint usado é:
+
+- `/api/ai/financial-review`
 
 ## Migração dos dados locais para a conta
 

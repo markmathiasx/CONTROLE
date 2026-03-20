@@ -26,6 +26,23 @@ export function hasSupabaseEnv() {
   return Boolean(getSupabaseAdminEnv());
 }
 
+export function getOpenAIEnv() {
+  const apiKey = process.env.OPENAI_API_KEY;
+
+  if (!apiKey) {
+    return null;
+  }
+
+  return {
+    apiKey,
+    model: process.env.OPENAI_RESPONSES_MODEL || "gpt-5.4",
+  };
+}
+
+export function hasOpenAIEnv() {
+  return Boolean(getOpenAIEnv());
+}
+
 export function getStorageMode(): StorageMode {
   return hasSupabaseEnv() ? "supabase" : "local";
 }
@@ -39,5 +56,6 @@ export function getRuntimeConfig(): RuntimeConfig {
     hasSupabase,
     hasPinLock: Boolean(process.env.APP_LOCK_PIN),
     hasUsernameAuth: hasSupabase,
+    hasOpenAI: hasOpenAIEnv(),
   };
 }
