@@ -342,10 +342,10 @@ export function HubPage() {
           accent="from-amber-400/20 via-amber-500/10 to-transparent"
         />
         <QuickLinkCard
-          href="/loja/producao"
+          href="/loja/catalogo"
           icon={Printer}
-          title="Registrar produção"
-          description="Custo, energia, desperdício e margem em tempo real."
+          title="Abrir catálogo da loja"
+          description="Curadoria pronta para venda com filtros, quick view e carrinho."
           accent="from-cyan-400/20 via-cyan-500/10 to-transparent"
         />
         <QuickLinkCard

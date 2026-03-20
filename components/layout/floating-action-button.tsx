@@ -13,6 +13,7 @@ const quickActions = [
   { href: null, label: "Gasto / receita", icon: Sparkles, action: "quick-add" },
   { href: "/moto/abastecimentos", label: "Abastecimento", icon: Fuel, action: "link" },
   { href: "/moto/manutencoes", label: "Manutenção", icon: Wrench, action: "link" },
+  { href: "/loja/catalogo", label: "Catálogo", icon: Sparkles, action: "link" },
   { href: "/loja/estoque", label: "Comprar filamento", icon: PackagePlus, action: "link" },
   { href: "/loja/estoque", label: "Novo insumo", icon: Box, action: "link" },
   { href: "/loja/producao", label: "Produção", icon: Printer, action: "link" },

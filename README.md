@@ -7,7 +7,7 @@ Hub pessoal em `pt-BR` para `Financeiro`, `Moto` e `Loja`, agora com autenticaç
 - `Resumo`: hub consolidado com visão geral dos 3 módulos
 - `Financeiro`: saldo do mês, VR, cartão, parcelas, transações, categorias, orçamentos e relatórios
 - `Moto`: abastecimentos, manutenções, custo mensal e próximos cuidados
-- `Loja`: estoque de filamentos/insumos, produção, pedidos e lucro operacional
+- `Loja`: catálogo com carrinho, estoque de filamentos/insumos, produção, pedidos e lucro operacional
 - `Auth + Cloud`: login, cadastro, logout, sessão persistente, rotas protegidas, cache local e sync por workspace
 - `IA opcional`: leitura financeira comentada no relatório, server-side only, sem chave no client
 
@@ -331,6 +331,7 @@ Cada registro também impacta o consolidado financeiro pelo centro `moto`.
 
 Em `/loja`:
 
+- catálogo em `/loja/catalogo` com filtros, quick view, carrinho persistente e CTA para pedido/WhatsApp
 - compra agrupada de filamentos
 - custo por rolo e por grama
 - insumos de pintura/acabamento

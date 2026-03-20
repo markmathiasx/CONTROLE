@@ -42,6 +42,7 @@ const pageTitles: Record<string, string> = {
   "/moto/abastecimentos": "Abastecimentos",
   "/moto/manutencoes": "Manutenções",
   "/loja": "Dashboard da loja",
+  "/loja/catalogo": "Catálogo da loja",
   "/loja/estoque": "Estoque da loja",
   "/loja/producao": "Produção 3D",
   "/loja/pedidos": "Pedidos da loja",

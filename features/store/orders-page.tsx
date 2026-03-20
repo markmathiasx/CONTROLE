@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { ReceiptText } from "lucide-react";
 import { toast } from "sonner";
 
@@ -83,6 +84,7 @@ function OrderForm({
 }
 
 export function OrdersPage() {
+  const searchParams = useSearchParams();
   const snapshot = useFinanceStore((state) => state.snapshot);
   const initialized = useFinanceStore((state) => state.initialized);
   const selectedMonth = useFinanceStore((state) => state.selectedMonth);
@@ -92,10 +94,41 @@ export function OrdersPage() {
   const [form, setForm] = React.useState<StoreOrderFormValues>(initialForm);
   const [editingForm, setEditingForm] = React.useState<StoreOrderFormValues | null>(null);
   const [filters, setFilters] = React.useState<OrderFilters>({ month: selectedMonth, status: "all", query: "" });
+  const appliedPrefillRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
     setFilters((current) => ({ ...current, month: selectedMonth }));
   }, [selectedMonth]);
+
+  React.useEffect(() => {
+    const productName = searchParams.get("produto")?.trim() ?? "";
+    if (!productName) {
+      return;
+    }
+
+    const quantity = Number(searchParams.get("qtd") ?? "1");
+    const unitPrice = Number(searchParams.get("valor") ?? "0");
+    const client = searchParams.get("cliente")?.trim() ?? "";
+    const token = `${productName}|${quantity}|${unitPrice}|${client}`;
+    if (appliedPrefillRef.current === token) {
+      return;
+    }
+
+    appliedPrefillRef.current = token;
+    setForm((current) => {
+      const nextQuantity = Number.isFinite(quantity) && quantity > 0 ? Math.round(quantity) : 1;
+      const nextUnitPrice = Number.isFinite(unitPrice) && unitPrice > 0 ? unitPrice : current.unitPrice;
+      const nextTotal = nextUnitPrice > 0 ? nextUnitPrice * nextQuantity : current.totalPrice;
+      return {
+        ...current,
+        client: client || current.client,
+        productName,
+        quantity: nextQuantity,
+        unitPrice: nextUnitPrice,
+        totalPrice: nextTotal,
+      };
+    });
+  }, [searchParams]);
 
   if (!initialized || !snapshot) {
     return <PageSkeleton cards={4} rows={3} />;

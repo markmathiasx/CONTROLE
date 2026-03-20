@@ -18,6 +18,7 @@ const primaryItems = [
 
 const secondaryItems = [
   { href: "/transacoes", label: "Transações" },
+  { href: "/loja/catalogo", label: "Catálogo" },
   { href: "/cartoes", label: "Cartões" },
   { href: "/parcelas", label: "Parcelas" },
   { href: "/categorias", label: "Categorias" },

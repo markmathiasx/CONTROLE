@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Boxes, DollarSign, PackageSearch, PaintBucket, Printer, ReceiptText, Zap } from "lucide-react";
+import { Boxes, DollarSign, PackageSearch, PaintBucket, Printer, ReceiptText, Sparkles, Zap } from "lucide-react";
 
 import { ChartCard } from "@/components/shared/chart-card";
 import { DeltaPill } from "@/components/shared/delta-pill";
@@ -147,6 +147,13 @@ export function StorePage() {
             title="Gerir estoque"
             description="Entrada de filamento, ajustes manuais, insumos e movimentações."
             accent="from-violet-400/20 via-violet-500/10 to-transparent"
+          />
+          <QuickLinkCard
+            href="/loja/catalogo"
+            icon={Sparkles}
+            title="Curadoria do catálogo"
+            description="Filtros por tema, margem, risco de estoque e carrinho para atendimento."
+            accent="from-emerald-400/20 via-emerald-500/10 to-transparent"
           />
           <QuickLinkCard
             href="/loja/producao"
