@@ -13,8 +13,8 @@ describe("vehicle presets", () => {
     const carPresets = vehiclePresetOptions.filter((item) => item.vehicleType === "car");
     const motorcyclePresets = vehiclePresetOptions.filter((item) => item.vehicleType === "motorcycle");
 
-    expect(carPresets.length).toBeGreaterThanOrEqual(30);
-    expect(motorcyclePresets.length).toBeGreaterThanOrEqual(12);
+    expect(carPresets.length).toBeGreaterThanOrEqual(1000);
+    expect(motorcyclePresets.length).toBeGreaterThanOrEqual(1000);
     expect(
       vehiclePresetOptions.some(
         (item) => item.vehicleType === "car" && item.years.some((year) => year >= 2016),

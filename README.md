@@ -331,7 +331,7 @@ Em `/moto`:
 
 - abastecimentos com cálculo bidirecional entre valor, litros e preço/litro
 - manutenção com categorias e recorrência simples
-- presets populares 2016-2026 para carro e moto (Fiat, VW, Chevrolet, Hyundai, Toyota, Honda, Yamaha e BMW), incluindo CG 160, Prisma 1.0 e Gol 1.5 com consumo médio e custos fixos anuais de referência
+- catálogo massivo 2016-2026 com mais de 1.000 variações de carros e mais de 1.000 variações de motos (incluindo Fiat, VW, Chevrolet, Hyundai, Toyota, Honda, Yamaha e BMW), com consumo médio e custos fixos anuais de referência
 - checklist rápido de peças/serviços por veículo com faixa de custo sugerida
 - atualização do odômetro
 - custo mensal da moto

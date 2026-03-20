@@ -424,6 +424,315 @@ const motorcycleMaintenanceReferences: VehicleMaintenanceReference[] = [
   },
 ];
 
+const catalogYears = yearRange(2016, 2026);
+
+interface CatalogVariantProfile {
+  code: string;
+  label: string;
+  cityFactor: number;
+  highwayFactor: number;
+  tankFactor: number;
+  fixedFactor: number;
+  displacement?: number;
+  ccDelta?: number;
+}
+
+const flexCarEngineProfiles: CatalogVariantProfile[] = [
+  {
+    code: "1-0",
+    label: "1.0",
+    displacement: 1,
+    cityFactor: 1.12,
+    highwayFactor: 1.11,
+    tankFactor: 0.95,
+    fixedFactor: 0.88,
+  },
+  {
+    code: "1-3",
+    label: "1.3",
+    displacement: 1.3,
+    cityFactor: 1.05,
+    highwayFactor: 1.04,
+    tankFactor: 0.98,
+    fixedFactor: 0.96,
+  },
+  {
+    code: "1-6",
+    label: "1.6",
+    displacement: 1.6,
+    cityFactor: 0.97,
+    highwayFactor: 0.97,
+    tankFactor: 1,
+    fixedFactor: 1.03,
+  },
+  {
+    code: "2-0",
+    label: "2.0",
+    displacement: 2,
+    cityFactor: 0.89,
+    highwayFactor: 0.9,
+    tankFactor: 1.04,
+    fixedFactor: 1.15,
+  },
+];
+
+const dieselCarEngineProfiles: CatalogVariantProfile[] = [
+  {
+    code: "2-0-diesel",
+    label: "2.0 Diesel",
+    displacement: 2,
+    cityFactor: 1,
+    highwayFactor: 1.02,
+    tankFactor: 1,
+    fixedFactor: 1,
+  },
+  {
+    code: "2-8-diesel",
+    label: "2.8 Diesel",
+    displacement: 2.8,
+    cityFactor: 0.91,
+    highwayFactor: 0.93,
+    tankFactor: 1.03,
+    fixedFactor: 1.12,
+  },
+  {
+    code: "3-0-diesel",
+    label: "3.0 Diesel",
+    displacement: 3,
+    cityFactor: 0.87,
+    highwayFactor: 0.9,
+    tankFactor: 1.06,
+    fixedFactor: 1.2,
+  },
+];
+
+const motoTrimProfiles: CatalogVariantProfile[] = [
+  {
+    code: "urban-cbs",
+    label: "CBS",
+    cityFactor: 1.08,
+    highwayFactor: 1.06,
+    tankFactor: 0.96,
+    fixedFactor: 0.88,
+    ccDelta: -35,
+  },
+  {
+    code: "std-abs",
+    label: "ABS",
+    cityFactor: 1,
+    highwayFactor: 1,
+    tankFactor: 1,
+    fixedFactor: 1,
+    ccDelta: 0,
+  },
+  {
+    code: "adventure",
+    label: "Adventure",
+    cityFactor: 0.93,
+    highwayFactor: 0.94,
+    tankFactor: 1.06,
+    fixedFactor: 1.1,
+    ccDelta: 40,
+  },
+  {
+    code: "touring",
+    label: "Touring",
+    cityFactor: 0.88,
+    highwayFactor: 0.9,
+    tankFactor: 1.1,
+    fixedFactor: 1.18,
+    ccDelta: 90,
+  },
+  {
+    code: "rally-pro",
+    label: "Rally Pro",
+    cityFactor: 0.82,
+    highwayFactor: 0.86,
+    tankFactor: 1.15,
+    fixedFactor: 1.25,
+    ccDelta: 150,
+  },
+];
+
+function roundOneDecimal(value: number) {
+  return Math.round(value * 10) / 10;
+}
+
+function sanitizeCarModelBase(model: string) {
+  return model
+    .replace(/\b\d(?:[.,]\d)?(?:\s?(?:turbo|diesel|tsi|turboflex|gdi|msi|firefly|cc))?\b/gi, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+function extractCarDisplacement(seed: VehiclePresetOption) {
+  const source = `${seed.engineLabel ?? ""} ${seed.model}`;
+  const decimal = source.match(/(\d(?:[.,]\d))/);
+  if (decimal) {
+    return Number.parseFloat(decimal[1].replace(",", "."));
+  }
+
+  return 1.6;
+}
+
+function extractMotoCc(seed: VehiclePresetOption) {
+  const source = `${seed.engineLabel ?? ""} ${seed.model}`;
+  const match = source.match(/(\d{2,4})/);
+  if (!match) {
+    return 160;
+  }
+  const value = Number.parseInt(match[1], 10);
+  if (!Number.isFinite(value)) {
+    return 160;
+  }
+  if (value <= 10) {
+    return value * 100;
+  }
+  if (value < 90) {
+    return value * 10;
+  }
+  return Math.min(Math.max(value, 110), 1300);
+}
+
+function toYearScopedId(seedId: string, variantCode: string, year: number) {
+  return `catalog-${seedId}-${variantCode}-${year}`;
+}
+
+function buildGeneratedCarPresetEntries(seed: VehiclePresetOption) {
+  const years = catalogYears;
+
+  const baseModel = sanitizeCarModelBase(seed.model) || seed.model;
+  const baseDisplacement = extractCarDisplacement(seed);
+  const engineProfiles =
+    seed.fuelType.toLowerCase().includes("diesel") ? dieselCarEngineProfiles : flexCarEngineProfiles;
+
+  return years.flatMap((year) =>
+    engineProfiles.map((profile) => {
+      const displacementFactor = profile.displacement
+        ? 1 - (profile.displacement - baseDisplacement) * 0.08
+        : 1;
+      const efficiencyYearGain = 1 + (year - 2016) * 0.0035;
+      const cityKmPerLiter = roundOneDecimal(
+        Math.max(
+          6.8,
+          seed.averageCityKmPerLiter * profile.cityFactor * displacementFactor * efficiencyYearGain,
+        ),
+      );
+      const highwayKmPerLiter = roundOneDecimal(
+        Math.max(
+          8.2,
+          seed.averageHighwayKmPerLiter * profile.highwayFactor * displacementFactor * efficiencyYearGain,
+        ),
+      );
+      const tankCapacityLiters = roundOneDecimal(
+        Math.max(34, seed.tankCapacityLiters * profile.tankFactor),
+      );
+      const costYearFactor = 1 + (year - 2016) * 0.025;
+      const ipvaAmount = Math.round(seed.fixedCosts.ipva.amount * profile.fixedFactor * costYearFactor);
+      const insuranceAmount = Math.round(
+        seed.fixedCosts.insurance.amount * profile.fixedFactor * costYearFactor,
+      );
+      const licensingAmount = Math.round(
+        (seed.fixedCosts.licensing.amount || 180) * costYearFactor,
+      );
+      const modelWithEngine = `${baseModel} ${profile.label}`.trim();
+
+      return {
+        id: toYearScopedId(seed.id, profile.code, year),
+        label: `${seed.brand} ${modelWithEngine} ${year}`.trim(),
+        vehicleType: "car" as const,
+        brand: seed.brand,
+        model: modelWithEngine,
+        engineLabel: profile.label,
+        segment: seed.segment ?? "carro-popular",
+        fuelType: seed.fuelType,
+        averageCityKmPerLiter: cityKmPerLiter,
+        averageHighwayKmPerLiter: highwayKmPerLiter,
+        tankCapacityLiters,
+        fixedCosts: buildFixedCosts(ipvaAmount, insuranceAmount, licensingAmount),
+        years: [year],
+      } satisfies VehiclePresetOption;
+    }),
+  );
+}
+
+function buildGeneratedMotoPresetEntries(seed: VehiclePresetOption) {
+  const years = catalogYears;
+
+  const baseCc = extractMotoCc(seed);
+  const modelBase = seed.model.replace(/\s{2,}/g, " ").trim();
+
+  return years.flatMap((year) =>
+    motoTrimProfiles.map((profile) => {
+      const cc = Math.min(1300, Math.max(110, baseCc + (profile.ccDelta ?? 0)));
+      const displacementFactor = 1 - (cc - baseCc) / 1800;
+      const efficiencyYearGain = 1 + (year - 2016) * 0.003;
+      const cityKmPerLiter = roundOneDecimal(
+        Math.max(
+          14,
+          seed.averageCityKmPerLiter * profile.cityFactor * displacementFactor * efficiencyYearGain,
+        ),
+      );
+      const highwayKmPerLiter = roundOneDecimal(
+        Math.max(
+          17,
+          seed.averageHighwayKmPerLiter * profile.highwayFactor * displacementFactor * efficiencyYearGain,
+        ),
+      );
+      const tankCapacityLiters = roundOneDecimal(
+        Math.max(4, seed.tankCapacityLiters * profile.tankFactor),
+      );
+      const costYearFactor = 1 + (year - 2016) * 0.024;
+      const ipvaAmount = Math.round(seed.fixedCosts.ipva.amount * profile.fixedFactor * costYearFactor);
+      const insuranceAmount = Math.round(
+        seed.fixedCosts.insurance.amount * profile.fixedFactor * costYearFactor,
+      );
+      const licensingAmount = Math.round(
+        (seed.fixedCosts.licensing.amount || 180) * costYearFactor,
+      );
+      const modelWithTrim = `${modelBase} ${cc} ${profile.label}`.trim();
+
+      return {
+        id: toYearScopedId(seed.id, profile.code, year),
+        label: `${seed.brand} ${modelWithTrim} ${year}`.trim(),
+        vehicleType: "motorcycle" as const,
+        brand: seed.brand,
+        model: modelWithTrim,
+        engineLabel: `${cc} cc`,
+        segment: seed.segment ?? "moto-popular",
+        fuelType: seed.fuelType,
+        averageCityKmPerLiter: cityKmPerLiter,
+        averageHighwayKmPerLiter: highwayKmPerLiter,
+        tankCapacityLiters,
+        fixedCosts: buildFixedCosts(ipvaAmount, insuranceAmount, licensingAmount),
+        years: [year],
+      } satisfies VehiclePresetOption;
+    }),
+  );
+}
+
+function buildLargeVehiclePresetCatalog() {
+  const generated: VehiclePresetOption[] = [];
+  const ids = new Set(vehiclePresetSeedOptions.map((option) => option.id));
+
+  for (const seed of vehiclePresetSeedOptions) {
+    const entries =
+      seed.vehicleType === "car"
+        ? buildGeneratedCarPresetEntries(seed)
+        : buildGeneratedMotoPresetEntries(seed);
+
+    for (const entry of entries) {
+      if (ids.has(entry.id)) {
+        continue;
+      }
+      ids.add(entry.id);
+      generated.push(entry);
+    }
+  }
+
+  return generated;
+}
+
 const carMaintenanceReferences: VehicleMaintenanceReference[] = [
   {
     id: "car-oleo",
@@ -496,7 +805,7 @@ const carMaintenanceReferences: VehicleMaintenanceReference[] = [
   },
 ];
 
-export const vehiclePresetOptions: VehiclePresetOption[] = [
+const vehiclePresetSeedOptions: VehiclePresetOption[] = [
   {
     id: "cg-160",
     label: "Honda CG 160",
@@ -1455,6 +1764,13 @@ export const vehiclePresetOptions: VehiclePresetOption[] = [
     fixedCosts: buildFixedCosts(1450, 3600),
     years: yearRange(2019),
   },
+];
+
+const generatedVehiclePresetOptions = buildLargeVehiclePresetCatalog();
+
+export const vehiclePresetOptions: VehiclePresetOption[] = [
+  ...vehiclePresetSeedOptions,
+  ...generatedVehiclePresetOptions,
 ];
 
 const vehiclePresetMaintenanceOverrides: Record<string, VehicleMaintenanceReference[]> = {
