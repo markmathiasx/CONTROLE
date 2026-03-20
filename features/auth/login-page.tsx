@@ -104,8 +104,11 @@ export function LoginPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {!runtimeConfig.hasSupabase ? (
-              <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
-                Este ambiente está em modo local. Configure o Supabase para usar login e sincronização.
+              <div className="space-y-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+                <p>Este ambiente está em modo local. Configure o Supabase para usar login e sincronização.</p>
+                <Button asChild variant="secondary" className="w-full rounded-2xl">
+                  <Link href="/">Continuar no modo local</Link>
+                </Button>
               </div>
             ) : (
               <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm text-cyan-100">
@@ -122,7 +125,14 @@ export function LoginPage() {
             <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
               <div className="space-y-2">
                 <Label>Login ou e-mail</Label>
-                <Input placeholder="seu.login ou voce@email.com" {...identifierRegister} />
+                <Input
+                  placeholder="seu.login ou voce@email.com"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  {...identifierRegister}
+                />
                 {form.formState.errors.identifier ? (
                   <p className="text-sm text-rose-300">{form.formState.errors.identifier.message}</p>
                 ) : null}
@@ -135,6 +145,7 @@ export function LoginPage() {
                     type={showPassword ? "text" : "password"}
                     placeholder="Sua senha"
                     className="pr-11"
+                    autoComplete="current-password"
                     {...passwordRegister}
                     onKeyUp={(event) => setCapsLockOn(event.getModifierState("CapsLock"))}
                     onBlur={(event) => {

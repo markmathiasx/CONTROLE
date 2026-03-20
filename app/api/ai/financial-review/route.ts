@@ -1,12 +1,14 @@
+import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getOpenAIEnv } from "@/lib/env";
+import { getOpenAIEnv, getRuntimeConfig } from "@/lib/env";
 import {
   checkRateLimit,
   enforceSameOrigin,
   jsonNoStore,
   parseJsonBody,
 } from "@/lib/server-security";
+import { getSupabaseRouteHandlerClient } from "@/services/supabase/server";
 
 export const runtime = "nodejs";
 
@@ -187,10 +189,39 @@ export async function POST(request: Request) {
     return sameOriginResponse;
   }
 
+  const runtimeConfig = getRuntimeConfig();
+  let rateLimitIdentifier: string | undefined;
+
+  if (runtimeConfig.hasSupabase) {
+    const authResponse = NextResponse.json({ ok: true });
+    const supabase = await getSupabaseRouteHandlerClient(authResponse);
+    if (!supabase) {
+      return jsonNoStore(
+        { ok: false, error: "Sessão indisponível neste ambiente." },
+        { status: 503 },
+      );
+    }
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return jsonNoStore(
+        { ok: false, error: "Faça login para usar a análise IA." },
+        { status: 401 },
+      );
+    }
+
+    rateLimitIdentifier = user.id;
+  }
+
   const rateLimitResponse = checkRateLimit(request, {
     key: "ai-financial-review",
     max: 8,
     windowMs: 60_000,
+    identifier: rateLimitIdentifier,
   });
   if (rateLimitResponse) {
     return rateLimitResponse;
@@ -235,41 +266,62 @@ export async function POST(request: Request) {
     monthlyComparisons,
   };
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${openAIEnv.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: openAIEnv.model,
-      input: [
-        {
-          role: "system",
-          content: [{ type: "input_text", text: systemPrompt }],
-        },
-        {
-          role: "user",
-          content: [
-            {
-              type: "input_text",
-              text: JSON.stringify(userPayload),
-            },
-          ],
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "financial_review",
-          schema: getResponseSchemaJson(),
-          strict: true,
-        },
-      },
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20_000);
 
-  const raw = (await response.json()) as unknown;
+  let response: Response;
+  let raw: unknown;
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${openAIEnv.apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: openAIEnv.model,
+        input: [
+          {
+            role: "system",
+            content: [{ type: "input_text", text: systemPrompt }],
+          },
+          {
+            role: "user",
+            content: [
+              {
+                type: "input_text",
+                text: JSON.stringify(userPayload),
+              },
+            ],
+          },
+        ],
+        max_output_tokens: 650,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "financial_review",
+            schema: getResponseSchemaJson(),
+            strict: true,
+          },
+        },
+      }),
+      signal: controller.signal,
+    });
+    raw = (await response.json()) as unknown;
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      return jsonNoStore(
+        { ok: false, error: "A análise IA demorou demais. Tente novamente em alguns segundos." },
+        { status: 504 },
+      );
+    }
+    return jsonNoStore(
+      { ok: false, error: "Não foi possível conectar ao serviço de IA agora." },
+      { status: 502 },
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const message =

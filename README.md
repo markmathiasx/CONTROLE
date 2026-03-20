@@ -222,7 +222,7 @@ O cadastro pede:
 - `login` único
 - `nome de exibição`
 - `e-mail`
-- `senha`
+- `senha forte` (8+ caracteres com minúscula, maiúscula, número e símbolo)
 
 Ao cadastrar:
 
@@ -260,6 +260,7 @@ O relatório consolidado agora pode gerar uma leitura comentada com IA.
 
 - a UI envia apenas o resumo consolidado do relatório
 - o endpoint server-side chama a OpenAI via `Responses API`
+- em modo nuvem, o endpoint exige sessão autenticada antes de chamar a IA
 - a chave fica somente no servidor
 - sem `OPENAI_API_KEY`, o botão continua visível mas a função fica desativada com mensagem clara
 

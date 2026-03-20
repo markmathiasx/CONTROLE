@@ -107,7 +107,7 @@ describe("auth routes", () => {
           username: "mark.login",
           displayName: "Mark",
           email: "mark@example.com",
-          password: "  senha123  ",
+          password: "  Senha#123  ",
         }),
       }),
     );
@@ -118,7 +118,7 @@ describe("auth routes", () => {
     expect(payload).toEqual({ ok: true, needsEmailConfirmation: true });
     expect(routeClient.auth.signUp).toHaveBeenCalledWith({
       email: "mark@example.com",
-      password: "  senha123  ",
+      password: "  Senha#123  ",
       options: {
         data: {
           username: "mark.login",
@@ -126,6 +126,32 @@ describe("auth routes", () => {
         },
       },
     });
+  });
+
+  it("bloqueia cadastro com senha fraca", async () => {
+    const routeClient = createRouteClient();
+    mocks.getSupabaseRouteHandlerClient.mockResolvedValue(routeClient);
+    mocks.getSupabaseAdminClient.mockReturnValue(
+      createAdminClient({ data: null, error: null }),
+    );
+
+    const response = await signupPost(
+      new Request("http://localhost/api/auth/signup", {
+        method: "POST",
+        body: JSON.stringify({
+          username: "mark.login",
+          displayName: "Mark",
+          email: "mark@example.com",
+          password: "senhafraca",
+        }),
+      }),
+    );
+    const payload = (await response.json()) as { ok?: boolean; error?: string };
+
+    expect(response.status).toBe(400);
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toContain("senha forte");
+    expect(routeClient.auth.signUp).not.toHaveBeenCalled();
   });
 
   it("faz logout mesmo quando o Supabase não está disponível", async () => {

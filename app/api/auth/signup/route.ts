@@ -66,9 +66,24 @@ export async function POST(request: Request) {
     );
   }
 
-  if (password.length < 6) {
+  if (password.length < 8) {
     return jsonNoStore(
-      { ok: false, error: "A senha precisa ter pelo menos 6 caracteres." },
+      { ok: false, error: "A senha precisa ter pelo menos 8 caracteres." },
+      { status: 400 },
+    );
+  }
+
+  const hasLowercase = /[a-z]/.test(password);
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasNumber = /\d/.test(password);
+  const hasSymbol = /[^A-Za-z0-9]/.test(password);
+
+  if (!hasLowercase || !hasUppercase || !hasNumber || !hasSymbol) {
+    return jsonNoStore(
+      {
+        ok: false,
+        error: "Use senha forte com letra minúscula, maiúscula, número e símbolo.",
+      },
       { status: 400 },
     );
   }

@@ -13,6 +13,7 @@ type RateLimitOptions = {
   key: string;
   max: number;
   windowMs: number;
+  identifier?: string;
 };
 
 type RateLimitState = {
@@ -52,8 +53,9 @@ export async function parseJsonBody<T>(
 ): Promise<{ ok: true; data: T } | { ok: false; response: NextResponse }> {
   const maxBytes = options.maxBytes ?? DEFAULT_JSON_LIMIT;
   const raw = await request.text();
+  const byteLength = new TextEncoder().encode(raw).length;
 
-  if (raw.length > maxBytes) {
+  if (byteLength > maxBytes) {
     return {
       ok: false,
       response: jsonNoStore(
@@ -79,6 +81,14 @@ export async function parseJsonBody<T>(
 
 export function enforceSameOrigin(request: Request) {
   const origin = request.headers.get("origin");
+  const fetchSite = request.headers.get("sec-fetch-site");
+
+  if (fetchSite === "cross-site") {
+    return jsonNoStore(
+      { ok: false, error: "Origem cross-site não permitida." },
+      { status: 403 },
+    );
+  }
 
   if (!origin) {
     return null;
@@ -113,7 +123,10 @@ export function getClientAddress(request: Request) {
 export function checkRateLimit(request: Request, options: RateLimitOptions) {
   const store = getRateLimitStore();
   const now = Date.now();
-  const identifier = `${options.key}:${getClientAddress(request)}`;
+  const customIdentifier = options.identifier?.trim();
+  const identifier = customIdentifier
+    ? `${options.key}:${customIdentifier}`
+    : `${options.key}:${getClientAddress(request)}`;
 
   for (const [key, state] of store.entries()) {
     if (state.resetAt <= now) {

@@ -1530,9 +1530,19 @@ export function SettingsPage() {
                     return;
                   }
 
-                  const text = await file.text();
-                  importSnapshot(JSON.parse(text));
-                  toast.success("Backup importado com sucesso.");
+                  try {
+                    const text = await file.text();
+                    importSnapshot(JSON.parse(text));
+                    toast.success("Backup importado com sucesso.");
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Falha ao importar backup. Verifique se o JSON está válido.",
+                    );
+                  } finally {
+                    event.currentTarget.value = "";
+                  }
                 }}
               />
             </label>

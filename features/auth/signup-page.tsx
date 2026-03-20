@@ -24,7 +24,14 @@ const signupSchema = z.object({
     .regex(/^[a-z0-9._-]+$/, "Use apenas letras minúsculas, números, ponto, hífen ou underline."),
   displayName: z.string().min(2, "Digite um nome para aparecer no app."),
   email: z.string().email("Digite um e-mail válido."),
-  password: z.string().min(6, "A senha precisa ter pelo menos 6 caracteres."),
+  password: z
+    .string()
+    .min(8, "A senha precisa ter pelo menos 8 caracteres.")
+    .max(72, "A senha pode ter no máximo 72 caracteres.")
+    .regex(/[a-z]/, "Inclua ao menos 1 letra minúscula.")
+    .regex(/[A-Z]/, "Inclua ao menos 1 letra maiúscula.")
+    .regex(/\d/, "Inclua ao menos 1 número.")
+    .regex(/[^A-Za-z0-9]/, "Inclua ao menos 1 símbolo."),
   confirmPassword: z.string().min(1, "Confirme sua senha."),
 }).refine((value) => value.password === value.confirmPassword, {
   path: ["confirmPassword"],
@@ -161,8 +168,11 @@ export function SignupPage() {
             ) : null}
 
             {!runtimeConfig.hasSupabase ? (
-              <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
-                Este ambiente está em modo local. Configure o Supabase para liberar cadastro e nuvem.
+              <div className="space-y-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4 text-sm text-amber-100">
+                <p>Este ambiente está em modo local. Configure o Supabase para liberar cadastro e nuvem.</p>
+                <Button asChild variant="secondary" className="w-full rounded-2xl">
+                  <Link href="/">Continuar no modo local</Link>
+                </Button>
               </div>
             ) : null}
 
@@ -171,6 +181,10 @@ export function SignupPage() {
                 <Label>Login</Label>
                 <Input
                   placeholder="mark.finance"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   {...usernameRegister}
                   onChange={(event) => {
                     usernameRegister.onChange(event);
@@ -187,7 +201,7 @@ export function SignupPage() {
 
               <div className="space-y-2">
                 <Label>Nome para aparecer</Label>
-                <Input placeholder="Mark" {...form.register("displayName")} />
+                <Input placeholder="Mark" autoComplete="name" {...form.register("displayName")} />
                 {form.formState.errors.displayName ? (
                   <p className="text-sm text-rose-300">{form.formState.errors.displayName.message}</p>
                 ) : null}
@@ -195,7 +209,15 @@ export function SignupPage() {
 
               <div className="space-y-2">
                 <Label>E-mail</Label>
-                <Input type="email" placeholder="voce@email.com" {...form.register("email")} />
+                <Input
+                  type="email"
+                  placeholder="voce@email.com"
+                  autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  {...form.register("email")}
+                />
                 {form.formState.errors.email ? (
                   <p className="text-sm text-rose-300">{form.formState.errors.email.message}</p>
                 ) : null}
@@ -206,8 +228,9 @@ export function SignupPage() {
                 <div className="relative">
                   <Input
                     type={showPassword ? "text" : "password"}
-                    placeholder="Pelo menos 6 caracteres"
+                    placeholder="Pelo menos 8 caracteres"
                     className="pr-11"
+                    autoComplete="new-password"
                     {...passwordRegister}
                     onKeyUp={(event) => setCapsLockOn(event.getModifierState("CapsLock"))}
                     onBlur={(event) => {
@@ -236,6 +259,7 @@ export function SignupPage() {
                     type={showConfirmPassword ? "text" : "password"}
                     placeholder="Repita a senha"
                     className="pr-11"
+                    autoComplete="new-password"
                     {...confirmPasswordRegister}
                   />
                   <button
@@ -257,6 +281,7 @@ export function SignupPage() {
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {[
                     { ok: currentPassword.length >= 8, label: "8+ caracteres" },
+                    { ok: /[a-z]/.test(currentPassword), label: "1 letra minúscula" },
                     { ok: /[A-Z]/.test(currentPassword), label: "1 letra maiúscula" },
                     { ok: /[0-9]/.test(currentPassword), label: "1 número" },
                     { ok: /[^A-Za-z0-9]/.test(currentPassword), label: "1 símbolo" },
