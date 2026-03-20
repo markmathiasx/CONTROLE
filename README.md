@@ -11,6 +11,13 @@ Hub pessoal em `pt-BR` para `Financeiro`, `Moto` e `Loja`, agora com autenticaç
 - `Auth + Cloud`: login, cadastro, logout, sessão persistente, rotas protegidas, cache local e sync por workspace
 - `IA opcional`: leitura financeira comentada no relatório, server-side only, sem chave no client
 
+### Polimento UX recente
+
+- telas de login/cadastro com validações reforçadas, toggle de senha e feedback de força
+- catálogo com filtros rápidos por chips, quick view e carrinho persistente
+- painéis flutuantes com auto-recolhimento por inatividade para reduzir poluição visual
+- refinamentos visuais com camadas glass/aurora e microinterações mobile-first
+
 ## Stack
 
 - Next.js 16 com App Router e typed routes

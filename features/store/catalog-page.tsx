@@ -87,6 +87,8 @@ export function CatalogPage() {
   const [selectedProduct, setSelectedProduct] = React.useState<CatalogProduct | null>(null);
   const [cartOpen, setCartOpen] = React.useState(false);
   const [customerName, setCustomerName] = React.useState("");
+  const productPanelTimerRef = React.useRef<number | null>(null);
+  const cartPanelTimerRef = React.useRef<number | null>(null);
   const [filters, setFilters] = React.useState(() => ({
     query: searchParams.get("q") ?? "",
     category: searchParams.get("categoria") ?? "all",
@@ -110,6 +112,79 @@ export function CatalogPage() {
       sort: (searchParams.get("sort") as SortOption | null) ?? "featured",
     });
   }, [searchParams]);
+
+  React.useEffect(
+    () => () => {
+      if (productPanelTimerRef.current) {
+        window.clearTimeout(productPanelTimerRef.current);
+      }
+      if (cartPanelTimerRef.current) {
+        window.clearTimeout(cartPanelTimerRef.current);
+      }
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    setSelectedProduct(null);
+    setCartOpen(false);
+  }, [pathname]);
+
+  React.useEffect(() => {
+    if (!selectedProduct) {
+      if (productPanelTimerRef.current) {
+        window.clearTimeout(productPanelTimerRef.current);
+      }
+      return;
+    }
+
+    productPanelTimerRef.current = window.setTimeout(() => {
+      setSelectedProduct(null);
+      toast("Quick view recolhido automaticamente.");
+    }, 20_000);
+
+    return () => {
+      if (productPanelTimerRef.current) {
+        window.clearTimeout(productPanelTimerRef.current);
+      }
+    };
+  }, [selectedProduct]);
+
+  React.useEffect(() => {
+    if (!cartOpen) {
+      if (cartPanelTimerRef.current) {
+        window.clearTimeout(cartPanelTimerRef.current);
+      }
+      return;
+    }
+
+    cartPanelTimerRef.current = window.setTimeout(() => {
+      setCartOpen(false);
+      toast("Carrinho recolhido automaticamente.");
+    }, 28_000);
+
+    return () => {
+      if (cartPanelTimerRef.current) {
+        window.clearTimeout(cartPanelTimerRef.current);
+      }
+    };
+  }, [cartOpen]);
+
+  React.useEffect(() => {
+    if (!selectedProduct && !cartOpen) {
+      return;
+    }
+
+    const closeByScroll = () => {
+      setSelectedProduct(null);
+      setCartOpen(false);
+    };
+
+    window.addEventListener("scroll", closeByScroll, true);
+    return () => {
+      window.removeEventListener("scroll", closeByScroll, true);
+    };
+  }, [cartOpen, selectedProduct]);
 
   if (!initialized || !snapshot) {
     return <PageSkeleton cards={6} rows={3} />;
@@ -168,7 +243,7 @@ export function CatalogPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="aurora-hero space-y-6">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
@@ -219,7 +294,7 @@ export function CatalogPage() {
         />
       </div>
 
-      <Card>
+      <Card className="glass-panel premium-hover">
         <CardHeader>
           <CardTitle>Filtros e ordenação</CardTitle>
         </CardHeader>
@@ -306,6 +381,39 @@ export function CatalogPage() {
               <Filter className="size-3.5" />
               {filteredProducts.length} produto(s) após os filtros.
             </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={`rounded-full border px-3 py-1.5 text-xs ${
+                  filters.category === "all"
+                    ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
+                    : "border-white/10 bg-white/6 text-zinc-400"
+                }`}
+                onClick={() => {
+                  setFilters((current) => ({ ...current, category: "all" }));
+                  updateQuery({ categoria: null });
+                }}
+              >
+                Todos
+              </button>
+              {categories.slice(0, 6).map((category) => (
+                <button
+                  key={category}
+                  type="button"
+                  className={`rounded-full border px-3 py-1.5 text-xs ${
+                    filters.category === category
+                      ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-200"
+                      : "border-white/10 bg-white/6 text-zinc-400"
+                  }`}
+                  onClick={() => {
+                    setFilters((current) => ({ ...current, category }));
+                    updateQuery({ categoria: category });
+                  }}
+                >
+                  {catalogCategoryLabels[category]}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex justify-end">
             <Button
@@ -337,7 +445,7 @@ export function CatalogPage() {
       {filteredProducts.length ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {filteredProducts.map((product) => (
-            <Card key={product.id} className="overflow-hidden">
+            <Card key={product.id} className="glass-panel premium-hover overflow-hidden">
               <CardContent className="p-0">
                 <div className={`h-28 bg-gradient-to-br ${themeClass(product.theme)} p-4`}>
                   <div className="flex items-start justify-between gap-2">
@@ -427,7 +535,7 @@ export function CatalogPage() {
         />
       )}
 
-      <Card>
+      <Card className="glass-panel premium-hover">
         <CardHeader>
           <CardTitle>Ações rápidas do catálogo</CardTitle>
         </CardHeader>
@@ -467,7 +575,9 @@ export function CatalogPage() {
           <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto">
             <SheetHeader>
               <SheetTitle>{selectedProduct.name}</SheetTitle>
-              <SheetDescription>{selectedProduct.description}</SheetDescription>
+              <SheetDescription>
+                {selectedProduct.description} Este painel recolhe automaticamente após alguns segundos.
+              </SheetDescription>
             </SheetHeader>
             <div className="space-y-4">
               <div className={`rounded-3xl border border-white/10 bg-gradient-to-br ${themeClass(selectedProduct.theme)} p-4`}>
@@ -555,7 +665,8 @@ export function CatalogPage() {
           <SheetHeader>
             <SheetTitle>Carrinho do catálogo</SheetTitle>
             <SheetDescription>
-              Persistente neste dispositivo para montar pedidos e fechar atendimento rápido.
+              Persistente neste dispositivo para montar pedidos e fechar atendimento rápido. O painel
+              recolhe automaticamente quando fica inativo.
             </SheetDescription>
           </SheetHeader>
 

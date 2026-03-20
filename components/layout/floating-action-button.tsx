@@ -23,16 +23,86 @@ const quickActions = [
 export function FloatingActionButton() {
   const pathname = usePathname();
   const setQuickAddOpen = useFinanceStore((state) => state.setQuickAddOpen);
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const timeoutRef = React.useRef<number | null>(null);
   const [speedDialOpen, setSpeedDialOpen] = React.useState(false);
 
-  React.useEffect(() => {
+  const closeSpeedDial = React.useCallback(() => {
     setSpeedDialOpen(false);
-  }, [pathname]);
+  }, []);
+
+  const scheduleAutoClose = React.useCallback(() => {
+    if (timeoutRef.current) {
+      window.clearTimeout(timeoutRef.current);
+    }
+    timeoutRef.current = window.setTimeout(() => {
+      closeSpeedDial();
+    }, 12_000);
+  }, [closeSpeedDial]);
+
+  React.useEffect(() => {
+    closeSpeedDial();
+  }, [closeSpeedDial, pathname]);
+
+  React.useEffect(
+    () => () => {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    if (!speedDialOpen) {
+      if (timeoutRef.current) {
+        window.clearTimeout(timeoutRef.current);
+      }
+      return;
+    }
+
+    scheduleAutoClose();
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (!target) {
+        return;
+      }
+      if (containerRef.current?.contains(target)) {
+        scheduleAutoClose();
+        return;
+      }
+      closeSpeedDial();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        closeSpeedDial();
+        return;
+      }
+      scheduleAutoClose();
+    };
+
+    const handleScrollIntent = () => closeSpeedDial();
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("scroll", handleScrollIntent, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("scroll", handleScrollIntent, true);
+    };
+  }, [closeSpeedDial, scheduleAutoClose, speedDialOpen]);
 
   return (
-    <div className="fixed bottom-24 right-5 z-40 flex flex-col items-end gap-2 sm:right-8">
+    <div ref={containerRef} className="fixed bottom-24 right-5 z-40 flex flex-col items-end gap-2 sm:right-8">
       {speedDialOpen ? (
-        <div className="flex w-[16.5rem] flex-col gap-2 rounded-[2rem] border border-white/10 bg-black/80 p-3 shadow-[0_24px_80px_-30px_rgba(16,185,129,1)] backdrop-blur-xl">
+        <div
+          id="quick-actions-speed-dial"
+          className="flex w-[16.5rem] flex-col gap-2 rounded-[2rem] border border-white/10 bg-black/80 p-3 shadow-[0_24px_80px_-30px_rgba(16,185,129,1)] backdrop-blur-xl"
+        >
           {quickActions.map((item) => {
             const Icon = item.icon;
 
@@ -77,7 +147,15 @@ export function FloatingActionButton() {
           "size-14 rounded-full shadow-[0_24px_80px_-30px_rgba(16,185,129,1)]",
           speedDialOpen && "bg-zinc-800 hover:bg-zinc-700",
         )}
-        onClick={() => setSpeedDialOpen(!speedDialOpen)}
+        aria-expanded={speedDialOpen}
+        aria-controls="quick-actions-speed-dial"
+        onClick={() => {
+          const next = !speedDialOpen;
+          setSpeedDialOpen(next);
+          if (next) {
+            scheduleAutoClose();
+          }
+        }}
       >
         <Plus className={cn("size-6 transition", speedDialOpen && "rotate-45")} />
         <span className="sr-only">Abrir ações rápidas</span>

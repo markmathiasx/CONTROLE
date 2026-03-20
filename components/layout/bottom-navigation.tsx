@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bike, FolderKanban, House, LayoutGrid, Printer, Wallet } from "lucide-react";
@@ -31,6 +32,24 @@ export function BottomNavigation() {
   const pathname = usePathname();
   const moreMenuOpen = useFinanceStore((state) => state.moreMenuOpen);
   const setMoreMenuOpen = useFinanceStore((state) => state.setMoreMenuOpen);
+
+  React.useEffect(() => {
+    setMoreMenuOpen(false);
+  }, [pathname, setMoreMenuOpen]);
+
+  React.useEffect(() => {
+    if (!moreMenuOpen) {
+      return;
+    }
+
+    const closeByInactivity = window.setTimeout(() => {
+      setMoreMenuOpen(false);
+    }, 18_000);
+
+    return () => {
+      window.clearTimeout(closeByInactivity);
+    };
+  }, [moreMenuOpen, setMoreMenuOpen]);
 
   function isActivePath(href: string) {
     if (href === "/") {

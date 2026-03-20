@@ -134,6 +134,24 @@ export function AppHeader() {
   const displayName = profile?.displayName ?? profile?.username ?? "Seu perfil";
   const initials = getInitials(displayName);
 
+  React.useEffect(() => {
+    setProfileMenuOpen(false);
+  }, [pathname, setProfileMenuOpen]);
+
+  React.useEffect(() => {
+    if (!profileMenuOpen) {
+      return;
+    }
+
+    const closeByIdle = window.setTimeout(() => {
+      setProfileMenuOpen(false);
+    }, 25_000);
+
+    return () => {
+      window.clearTimeout(closeByIdle);
+    };
+  }, [profileMenuOpen, setProfileMenuOpen]);
+
   return (
     <>
       <header className="sticky top-0 z-30 border-b border-white/8 bg-black/40 backdrop-blur-xl">
