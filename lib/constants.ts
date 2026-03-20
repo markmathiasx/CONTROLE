@@ -599,7 +599,8 @@ function toYearScopedId(seedId: string, variantCode: string, year: number) {
 }
 
 function buildGeneratedCarPresetEntries(seed: VehiclePresetOption) {
-  const years = catalogYears;
+  const availableYears = seed.years.filter((year) => year >= 2016 && year <= 2026);
+  const years = availableYears.length > 0 ? availableYears : catalogYears;
 
   const baseModel = sanitizeCarModelBase(seed.model) || seed.model;
   const baseDisplacement = extractCarDisplacement(seed);
@@ -657,7 +658,8 @@ function buildGeneratedCarPresetEntries(seed: VehiclePresetOption) {
 }
 
 function buildGeneratedMotoPresetEntries(seed: VehiclePresetOption) {
-  const years = catalogYears;
+  const availableYears = seed.years.filter((year) => year >= 2016 && year <= 2026);
+  const years = availableYears.length > 0 ? availableYears : catalogYears;
 
   const baseCc = extractMotoCc(seed);
   const modelBase = seed.model.replace(/\s{2,}/g, " ").trim();
@@ -805,7 +807,7 @@ const carMaintenanceReferences: VehicleMaintenanceReference[] = [
   },
 ];
 
-const vehiclePresetSeedOptions: VehiclePresetOption[] = [
+const coreVehiclePresetSeedOptions: VehiclePresetOption[] = [
   {
     id: "cg-160",
     label: "Honda CG 160",
@@ -1765,6 +1767,350 @@ const vehiclePresetSeedOptions: VehiclePresetOption[] = [
     years: yearRange(2019),
   },
 ];
+
+interface VehicleCatalogCoverageModel {
+  brand: string;
+  model: string;
+  vehicleType: VehicleType;
+  segment?: string;
+  fuelType?: string;
+  engineLabel?: string;
+  yearStart?: number;
+  yearEnd?: number;
+}
+
+const carSegmentProfiles: Record<
+  string,
+  { cityBase: number; tankBase: number; ipvaBase: number; insuranceBase: number }
+> = {
+  hatch: { cityBase: 13.2, tankBase: 47, ipvaBase: 1200, insuranceBase: 2200 },
+  sedan: { cityBase: 12.1, tankBase: 50, ipvaBase: 1450, insuranceBase: 2600 },
+  suv: { cityBase: 10.7, tankBase: 52, ipvaBase: 2150, insuranceBase: 3950 },
+  "suv-coupe": { cityBase: 10.4, tankBase: 52, ipvaBase: 2400, insuranceBase: 4400 },
+  picape: { cityBase: 10.1, tankBase: 70, ipvaBase: 2850, insuranceBase: 5200 },
+  familiar: { cityBase: 10.6, tankBase: 53, ipvaBase: 1750, insuranceBase: 3200 },
+  premium: { cityBase: 9.6, tankBase: 60, ipvaBase: 4100, insuranceBase: 7900 },
+  crossover: { cityBase: 11.2, tankBase: 50, ipvaBase: 1950, insuranceBase: 3400 },
+  van: { cityBase: 9.2, tankBase: 70, ipvaBase: 3100, insuranceBase: 5600 },
+};
+
+const motoSegmentProfiles: Record<
+  string,
+  { cityBias: number; highwayBias: number; tankBase: number; ipvaBase: number; insuranceBase: number }
+> = {
+  street: { cityBias: 1, highwayBias: 1.05, tankBase: 14, ipvaBase: 240, insuranceBase: 560 },
+  trail: { cityBias: 0.95, highwayBias: 1.02, tankBase: 13.5, ipvaBase: 340, insuranceBase: 820 },
+  scooter: { cityBias: 1.06, highwayBias: 1.05, tankBase: 8.5, ipvaBase: 210, insuranceBase: 520 },
+  sport: { cityBias: 0.82, highwayBias: 0.93, tankBase: 15, ipvaBase: 620, insuranceBase: 1450 },
+  touring: { cityBias: 0.78, highwayBias: 0.9, tankBase: 17, ipvaBase: 920, insuranceBase: 2200 },
+  custom: { cityBias: 0.86, highwayBias: 0.95, tankBase: 14.5, ipvaBase: 560, insuranceBase: 1250 },
+  "big-trail": { cityBias: 0.74, highwayBias: 0.9, tankBase: 19, ipvaBase: 1200, insuranceBase: 2850 },
+};
+
+const premiumMotoBrands = new Set(["BMW", "Ducati", "Triumph", "Kawasaki"]);
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), max);
+}
+
+function normalizeSlugLabel(text: string) {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+function extractDisplacementLitersFromModel(model: string, fallback = 1.3) {
+  const match = model.match(/(\d(?:[.,]\d)?)/);
+  if (!match) {
+    return fallback;
+  }
+  const parsed = Number.parseFloat(match[1].replace(",", "."));
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return clampNumber(parsed, 1, 3.5);
+}
+
+function extractCcFromModel(model: string, fallback = 160) {
+  const match = model.match(/(\d{2,4})/);
+  if (!match) {
+    return fallback;
+  }
+  const parsed = Number.parseInt(match[1], 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  if (parsed < 90) {
+    return parsed * 10;
+  }
+  return clampNumber(parsed, 100, 1300);
+}
+
+function toCoverageModelKey(model: Pick<VehicleCatalogCoverageModel, "brand" | "model" | "vehicleType">) {
+  return `${model.vehicleType}::${model.brand.toLowerCase()}::${model.model.toLowerCase()}`;
+}
+
+function buildCoveragePreset(model: VehicleCatalogCoverageModel): VehiclePresetOption {
+  const yearStart = model.yearStart ?? 2016;
+  const yearEnd = model.yearEnd ?? 2026;
+  const years = yearRange(yearStart, yearEnd);
+  const id = `br-${normalizeSlugLabel(`${model.brand}-${model.model}`)}`;
+
+  if (model.vehicleType === "car") {
+    const segmentProfile = carSegmentProfiles[model.segment ?? "hatch"] ?? carSegmentProfiles.hatch;
+    const displacement = extractDisplacementLitersFromModel(model.model);
+    const displacementFactor = clampNumber(1.14 - (displacement - 1) * 0.2, 0.68, 1.2);
+    const fuelType = model.fuelType ?? "Flex";
+    const dieselBoost = fuelType.toLowerCase().includes("diesel") ? 1.06 : 1;
+    const cityKmPerLiter = roundOneDecimal(
+      clampNumber(segmentProfile.cityBase * displacementFactor * dieselBoost, 7.8, 18.4),
+    );
+    const highwayKmPerLiter = roundOneDecimal(clampNumber(cityKmPerLiter * 1.21, 9.8, 22.8));
+    const tankCapacityLiters = roundOneDecimal(
+      clampNumber(segmentProfile.tankBase + (displacement - 1) * 2.6, 36, 95),
+    );
+    const costFactor = clampNumber(0.92 + displacement * 0.16, 0.9, 1.7);
+    const ipva = Math.round(segmentProfile.ipvaBase * costFactor);
+    const insurance = Math.round(segmentProfile.insuranceBase * costFactor);
+
+    return {
+      id,
+      label: `${model.brand} ${model.model}`,
+      vehicleType: "car",
+      brand: model.brand,
+      model: model.model,
+      engineLabel: model.engineLabel,
+      segment: model.segment ?? "carro-popular",
+      fuelType,
+      averageCityKmPerLiter: cityKmPerLiter,
+      averageHighwayKmPerLiter: highwayKmPerLiter,
+      tankCapacityLiters,
+      fixedCosts: buildFixedCosts(ipva, insurance),
+      years,
+    };
+  }
+
+  const segmentProfile = motoSegmentProfiles[model.segment ?? "street"] ?? motoSegmentProfiles.street;
+  const cc = extractCcFromModel(model.model);
+  const baseCity = clampNumber(61 - cc * 0.082, 16, 56);
+  const premiumBrandFactor = premiumMotoBrands.has(model.brand) ? 1.18 : 1;
+  const cityKmPerLiter = roundOneDecimal(
+    clampNumber(baseCity * segmentProfile.cityBias, 15, 58),
+  );
+  const highwayKmPerLiter = roundOneDecimal(
+    clampNumber(cityKmPerLiter * segmentProfile.highwayBias, 17, 62),
+  );
+  const tankCapacityLiters = roundOneDecimal(
+    clampNumber(segmentProfile.tankBase + (cc - 150) / 120, 4.5, 28),
+  );
+  const displacementFactor = clampNumber(0.88 + cc / 800, 0.9, 2.6);
+  const ipva = Math.round(segmentProfile.ipvaBase * displacementFactor * premiumBrandFactor);
+  const insurance = Math.round(segmentProfile.insuranceBase * displacementFactor * premiumBrandFactor);
+
+  return {
+    id,
+    label: `${model.brand} ${model.model}`,
+    vehicleType: "motorcycle",
+    brand: model.brand,
+    model: model.model,
+    engineLabel: model.engineLabel ?? `${cc} cc`,
+    segment: model.segment ?? "moto-popular",
+    fuelType: model.fuelType ?? "Gasolina",
+    averageCityKmPerLiter: cityKmPerLiter,
+    averageHighwayKmPerLiter: highwayKmPerLiter,
+    tankCapacityLiters,
+    fixedCosts: buildFixedCosts(ipva, insurance),
+    years,
+  };
+}
+
+const additionalCarCoverageModels: VehicleCatalogCoverageModel[] = [
+  { brand: "Chevrolet", model: "Onix Joy 1.0", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Chevrolet", model: "Onix RS 1.0 Turbo", vehicleType: "car", segment: "hatch", yearStart: 2021 },
+  { brand: "Chevrolet", model: "Prisma 1.4", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2019 },
+  { brand: "Chevrolet", model: "Cobalt 1.8", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2020 },
+  { brand: "Chevrolet", model: "Cruze 1.4 Turbo", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2023 },
+  { brand: "Chevrolet", model: "Tracker 1.2 Turbo", vehicleType: "car", segment: "suv", yearStart: 2021 },
+  { brand: "Chevrolet", model: "Equinox 1.5 Turbo", vehicleType: "car", segment: "suv", yearStart: 2018 },
+  { brand: "Chevrolet", model: "Trailblazer 2.8 Diesel", vehicleType: "car", segment: "picape", fuelType: "Diesel", yearStart: 2016 },
+  { brand: "Chevrolet", model: "Spin Activ 1.8", vehicleType: "car", segment: "familiar", yearStart: 2016 },
+  { brand: "Chevrolet", model: "Montana Premier 1.2 Turbo", vehicleType: "car", segment: "picape", yearStart: 2023 },
+  { brand: "Volkswagen", model: "Up 1.0 TSI", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Volkswagen", model: "Gol Track 1.0", vehicleType: "car", segment: "hatch", yearStart: 2022, yearEnd: 2023 },
+  { brand: "Volkswagen", model: "Voyage 1.0", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2023 },
+  { brand: "Volkswagen", model: "Polo Track 1.0", vehicleType: "car", segment: "hatch", yearStart: 2023 },
+  { brand: "Volkswagen", model: "Polo GTS 1.4 TSI", vehicleType: "car", segment: "hatch", yearStart: 2020 },
+  { brand: "Volkswagen", model: "Virtus 170 TSI", vehicleType: "car", segment: "sedan", yearStart: 2022 },
+  { brand: "Volkswagen", model: "Virtus Exclusive 1.4 TSI", vehicleType: "car", segment: "sedan", yearStart: 2023 },
+  { brand: "Volkswagen", model: "Nivus Highline 1.0 TSI", vehicleType: "car", segment: "crossover", yearStart: 2021 },
+  { brand: "Volkswagen", model: "T-Cross 1.4 TSI", vehicleType: "car", segment: "suv", yearStart: 2020 },
+  { brand: "Volkswagen", model: "Taos 1.4 TSI", vehicleType: "car", segment: "suv", yearStart: 2021 },
+  { brand: "Volkswagen", model: "Jetta GLI 2.0 TSI", vehicleType: "car", segment: "sedan", yearStart: 2019 },
+  { brand: "Volkswagen", model: "Amarok V6 3.0 Diesel", vehicleType: "car", segment: "picape", fuelType: "Diesel", yearStart: 2018 },
+  { brand: "Volkswagen", model: "Saveiro Robust 1.6", vehicleType: "car", segment: "picape", yearStart: 2016 },
+  { brand: "Fiat", model: "Argo 1.8", vehicleType: "car", segment: "hatch", yearStart: 2017, yearEnd: 2022 },
+  { brand: "Fiat", model: "Mobi Trekking 1.0", vehicleType: "car", segment: "hatch", yearStart: 2019 },
+  { brand: "Fiat", model: "Cronos 1.0", vehicleType: "car", segment: "sedan", yearStart: 2022 },
+  { brand: "Fiat", model: "Pulse Abarth 1.3 Turbo", vehicleType: "car", segment: "suv", yearStart: 2022 },
+  { brand: "Fiat", model: "Fastback Abarth 1.3 Turbo", vehicleType: "car", segment: "suv-coupe", yearStart: 2023 },
+  { brand: "Fiat", model: "Siena 1.4", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2018 },
+  { brand: "Fiat", model: "Grand Siena 1.6", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Fiat", model: "Uno Way 1.3", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Fiat", model: "Strada 1.4", vehicleType: "car", segment: "picape", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Fiat", model: "Strada Turbo 1.0", vehicleType: "car", segment: "picape", yearStart: 2024 },
+  { brand: "Fiat", model: "Toro Ultra 2.0 Diesel", vehicleType: "car", segment: "picape", fuelType: "Diesel", yearStart: 2019, yearEnd: 2024 },
+  { brand: "Fiat", model: "Toro Volcano 1.3 Turbo", vehicleType: "car", segment: "picape", yearStart: 2022 },
+  { brand: "Hyundai", model: "HB20 1.6", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2022 },
+  { brand: "Hyundai", model: "HB20S 1.6", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2022 },
+  { brand: "Hyundai", model: "Creta 2.0", vehicleType: "car", segment: "suv", yearStart: 2017, yearEnd: 2024 },
+  { brand: "Hyundai", model: "Tucson 1.6 Turbo", vehicleType: "car", segment: "suv", yearStart: 2018 },
+  { brand: "Hyundai", model: "ix35 2.0", vehicleType: "car", segment: "suv", yearStart: 2016, yearEnd: 2022 },
+  { brand: "Toyota", model: "Etios 1.3", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Toyota", model: "Etios Sedan 1.5", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Toyota", model: "Yaris Sedan 1.5", vehicleType: "car", segment: "sedan", yearStart: 2018, yearEnd: 2024 },
+  { brand: "Toyota", model: "Corolla 1.8 Hybrid", vehicleType: "car", segment: "sedan", yearStart: 2020 },
+  { brand: "Toyota", model: "Hilux SRX 2.8 Diesel", vehicleType: "car", segment: "picape", fuelType: "Diesel", yearStart: 2016 },
+  { brand: "Toyota", model: "SW4 2.8 Diesel", vehicleType: "car", segment: "premium", fuelType: "Diesel", yearStart: 2016 },
+  { brand: "Honda", model: "Fit 1.5", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Honda", model: "WR-V 1.5", vehicleType: "car", segment: "crossover", yearStart: 2017, yearEnd: 2024 },
+  { brand: "Honda", model: "Civic Touring 1.5 Turbo", vehicleType: "car", segment: "sedan", yearStart: 2017, yearEnd: 2021 },
+  { brand: "Honda", model: "HR-V 1.8", vehicleType: "car", segment: "suv", yearStart: 2016, yearEnd: 2022 },
+  { brand: "Honda", model: "HR-V 1.5 Turbo Touring", vehicleType: "car", segment: "suv", yearStart: 2023 },
+  { brand: "Renault", model: "Logan 1.6", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2022 },
+  { brand: "Renault", model: "Sandero Stepway 1.6", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2022 },
+  { brand: "Renault", model: "Duster 1.3 Turbo", vehicleType: "car", segment: "suv", yearStart: 2021 },
+  { brand: "Renault", model: "Oroch 1.3 Turbo", vehicleType: "car", segment: "picape", yearStart: 2023 },
+  { brand: "Renault", model: "Captur 1.3 Turbo", vehicleType: "car", segment: "suv", yearStart: 2021, yearEnd: 2024 },
+  { brand: "Renault", model: "Kwid Outsider 1.0", vehicleType: "car", segment: "hatch", yearStart: 2020 },
+  { brand: "Nissan", model: "March 1.6", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Nissan", model: "Versa V-Drive 1.6", vehicleType: "car", segment: "sedan", yearStart: 2021 },
+  { brand: "Nissan", model: "Sentra 2.0", vehicleType: "car", segment: "sedan", yearStart: 2023 },
+  { brand: "Nissan", model: "Kicks 1.0 Turbo", vehicleType: "car", segment: "suv", yearStart: 2025 },
+  { brand: "Nissan", model: "Frontier 2.3 Diesel", vehicleType: "car", segment: "picape", fuelType: "Diesel", yearStart: 2017 },
+  { brand: "Jeep", model: "Renegade 2.0 Diesel", vehicleType: "car", segment: "suv", fuelType: "Diesel", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Jeep", model: "Compass 2.0 Diesel", vehicleType: "car", segment: "suv", fuelType: "Diesel", yearStart: 2017, yearEnd: 2024 },
+  { brand: "Jeep", model: "Commander 2.0 Diesel", vehicleType: "car", segment: "premium", fuelType: "Diesel", yearStart: 2022 },
+  { brand: "Peugeot", model: "208 1.6", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2024 },
+  { brand: "Peugeot", model: "2008 1.6 Turbo", vehicleType: "car", segment: "suv", yearStart: 2020 },
+  { brand: "Peugeot", model: "3008 1.6 Turbo", vehicleType: "car", segment: "suv", yearStart: 2018, yearEnd: 2024 },
+  { brand: "Citroën", model: "C4 Cactus 1.6 Turbo", vehicleType: "car", segment: "suv", yearStart: 2019, yearEnd: 2024 },
+  { brand: "Citroën", model: "Aircross 1.6", vehicleType: "car", segment: "crossover", yearStart: 2016, yearEnd: 2023 },
+  { brand: "Ford", model: "EcoSport 1.5", vehicleType: "car", segment: "suv", yearStart: 2017, yearEnd: 2021 },
+  { brand: "Ford", model: "Ka Sedan 1.5", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Ford", model: "Ranger 2.0 Diesel", vehicleType: "car", segment: "picape", fuelType: "Diesel", yearStart: 2020 },
+  { brand: "Ford", model: "Territory 1.5 Turbo", vehicleType: "car", segment: "suv", yearStart: 2021 },
+  { brand: "Caoa Chery", model: "Tiggo 5X 1.5 Turbo", vehicleType: "car", segment: "suv", yearStart: 2019 },
+  { brand: "Caoa Chery", model: "Tiggo 7 Pro 1.6 Turbo", vehicleType: "car", segment: "suv", yearStart: 2022 },
+  { brand: "Caoa Chery", model: "Tiggo 8 1.6 Turbo", vehicleType: "car", segment: "premium", yearStart: 2021 },
+  { brand: "RAM", model: "Rampage 2.0 Diesel", vehicleType: "car", segment: "picape", fuelType: "Diesel", yearStart: 2024 },
+];
+
+const additionalMotoCoverageModels: VehicleCatalogCoverageModel[] = [
+  { brand: "Honda", model: "CG 160 Titan", vehicleType: "motorcycle", segment: "street", fuelType: "Flex", yearStart: 2016 },
+  { brand: "Honda", model: "CG 160 Fan", vehicleType: "motorcycle", segment: "street", fuelType: "Flex", yearStart: 2016 },
+  { brand: "Honda", model: "NXR Bros 160 ESDD", vehicleType: "motorcycle", segment: "trail", fuelType: "Flex", yearStart: 2016 },
+  { brand: "Honda", model: "XRE 190", vehicleType: "motorcycle", segment: "trail", fuelType: "Flex", yearStart: 2016 },
+  { brand: "Honda", model: "CB 500F", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2016 },
+  { brand: "Honda", model: "CB 500X", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2016, yearEnd: 2023 },
+  { brand: "Honda", model: "CB 650R", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2019 },
+  { brand: "Honda", model: "CBR 650R", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2019 },
+  { brand: "Honda", model: "NC 750X", vehicleType: "motorcycle", segment: "touring", fuelType: "Gasolina", yearStart: 2016 },
+  { brand: "Honda", model: "Africa Twin 1100", vehicleType: "motorcycle", segment: "big-trail", fuelType: "Gasolina", yearStart: 2020 },
+  { brand: "Honda", model: "Elite 125", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2019 },
+  { brand: "Honda", model: "PCX 150", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2016, yearEnd: 2021 },
+  { brand: "Honda", model: "ADV 160", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2023 },
+  { brand: "Honda", model: "SH 150i", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2016, yearEnd: 2022 },
+  { brand: "Yamaha", model: "FZ15", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2023 },
+  { brand: "Yamaha", model: "FZ25", vehicleType: "motorcycle", segment: "street", fuelType: "Flex", yearStart: 2018 },
+  { brand: "Yamaha", model: "Fazer 250 Connected", vehicleType: "motorcycle", segment: "street", fuelType: "Flex", yearStart: 2025 },
+  { brand: "Yamaha", model: "Crosser 150 S", vehicleType: "motorcycle", segment: "trail", fuelType: "Flex", yearStart: 2019 },
+  { brand: "Yamaha", model: "Lander 250 ABS", vehicleType: "motorcycle", segment: "trail", fuelType: "Flex", yearStart: 2020 },
+  { brand: "Yamaha", model: "MT-07", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2016 },
+  { brand: "Yamaha", model: "MT-09", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2016 },
+  { brand: "Yamaha", model: "R15", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2023 },
+  { brand: "Yamaha", model: "YZF-R3", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2016 },
+  { brand: "Yamaha", model: "NMAX 160", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2017 },
+  { brand: "Yamaha", model: "Neo 125", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2017 },
+  { brand: "Yamaha", model: "XMAX 250", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2018 },
+  { brand: "Kawasaki", model: "Ninja 300", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2016, yearEnd: 2017 },
+  { brand: "Kawasaki", model: "Ninja 400", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2018 },
+  { brand: "Kawasaki", model: "Z400", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2019 },
+  { brand: "Kawasaki", model: "Z650", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2018 },
+  { brand: "Kawasaki", model: "Z900", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2018 },
+  { brand: "Kawasaki", model: "Versys-X 300", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2018 },
+  { brand: "Kawasaki", model: "Versys 650", vehicleType: "motorcycle", segment: "touring", fuelType: "Gasolina", yearStart: 2017 },
+  { brand: "Kawasaki", model: "Vulcan S 650", vehicleType: "motorcycle", segment: "custom", fuelType: "Gasolina", yearStart: 2017 },
+  { brand: "Suzuki", model: "Gixxer 150", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2016, yearEnd: 2024 },
+  { brand: "Suzuki", model: "GSX-S750", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2018, yearEnd: 2024 },
+  { brand: "Suzuki", model: "V-Strom 650XT", vehicleType: "motorcycle", segment: "touring", fuelType: "Gasolina", yearStart: 2016, yearEnd: 2024 },
+  { brand: "Suzuki", model: "V-Strom 1050", vehicleType: "motorcycle", segment: "big-trail", fuelType: "Gasolina", yearStart: 2021 },
+  { brand: "Suzuki", model: "Burgman 125", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2018 },
+  { brand: "Haojue", model: "DK 160", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2020 },
+  { brand: "Haojue", model: "DR 160", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2020 },
+  { brand: "Haojue", model: "Lindy 125", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2021 },
+  { brand: "BMW", model: "F 750 GS", vehicleType: "motorcycle", segment: "big-trail", fuelType: "Gasolina", yearStart: 2019 },
+  { brand: "BMW", model: "F 900 GS", vehicleType: "motorcycle", segment: "big-trail", fuelType: "Gasolina", yearStart: 2024 },
+  { brand: "BMW", model: "F 900 R", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2022 },
+  { brand: "BMW", model: "R 1250 GS", vehicleType: "motorcycle", segment: "big-trail", fuelType: "Gasolina", yearStart: 2019 },
+  { brand: "BMW", model: "S 1000 RR", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2016 },
+  { brand: "BMW", model: "C 400 X", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2022 },
+  { brand: "Royal Enfield", model: "Himalayan 411", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2019, yearEnd: 2024 },
+  { brand: "Royal Enfield", model: "Scram 411", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2023 },
+  { brand: "Royal Enfield", model: "Classic 350", vehicleType: "motorcycle", segment: "custom", fuelType: "Gasolina", yearStart: 2022 },
+  { brand: "Royal Enfield", model: "Meteor 350", vehicleType: "motorcycle", segment: "custom", fuelType: "Gasolina", yearStart: 2021 },
+  { brand: "Royal Enfield", model: "Hunter 350", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2023 },
+  { brand: "Royal Enfield", model: "Interceptor 650", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2019 },
+  { brand: "Royal Enfield", model: "Continental GT 650", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2019 },
+  { brand: "Royal Enfield", model: "Super Meteor 650", vehicleType: "motorcycle", segment: "custom", fuelType: "Gasolina", yearStart: 2024 },
+  { brand: "Bajaj", model: "Dominar 160", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2024 },
+  { brand: "Bajaj", model: "Dominar 200", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2024 },
+  { brand: "Bajaj", model: "Dominar 400", vehicleType: "motorcycle", segment: "touring", fuelType: "Gasolina", yearStart: 2024 },
+  { brand: "Bajaj", model: "Pulsar N160", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2023 },
+  { brand: "Bajaj", model: "Pulsar NS200", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2023 },
+  { brand: "Bajaj", model: "Pulsar F250", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2024 },
+  { brand: "Triumph", model: "Speed 400", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2024 },
+  { brand: "Triumph", model: "Scrambler 400 X", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2024 },
+  { brand: "Triumph", model: "Tiger 900", vehicleType: "motorcycle", segment: "big-trail", fuelType: "Gasolina", yearStart: 2020 },
+  { brand: "Triumph", model: "Trident 660", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2022 },
+  { brand: "Dafra", model: "Citycom 300i", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 2016, yearEnd: 2024 },
+  { brand: "Dafra", model: "NH 190", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2020, yearEnd: 2024 },
+];
+
+function dedupeVehiclePresetSeeds(seedOptions: VehiclePresetOption[]) {
+  const seen = new Set<string>();
+  return seedOptions.filter((option) => {
+    if (seen.has(option.id)) {
+      return false;
+    }
+    seen.add(option.id);
+    return true;
+  });
+}
+
+const coreModelKeys = new Set(
+  coreVehiclePresetSeedOptions.map((seed) =>
+    toCoverageModelKey({
+      brand: seed.brand,
+      model: seed.model,
+      vehicleType: seed.vehicleType,
+    }),
+  ),
+);
+
+const additionalVehicleCoverageSeedOptions = [
+  ...additionalCarCoverageModels,
+  ...additionalMotoCoverageModels,
+]
+  .filter((model) => !coreModelKeys.has(toCoverageModelKey(model)))
+  .map(buildCoveragePreset);
+
+const vehiclePresetSeedOptions = dedupeVehiclePresetSeeds([
+  ...coreVehiclePresetSeedOptions,
+  ...additionalVehicleCoverageSeedOptions,
+]);
 
 const generatedVehiclePresetOptions = buildLargeVehiclePresetCatalog();
 
