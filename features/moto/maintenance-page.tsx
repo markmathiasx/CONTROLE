@@ -59,7 +59,9 @@ const initialForm: MaintenanceFormState = {
   paymentMethod: "pix",
 };
 
-function toMaintenanceFormState(values?: Partial<MaintenanceLogFormValues> & { id?: string }): MaintenanceFormState {
+function toMaintenanceFormState(
+  values?: Partial<MaintenanceLogFormValues> & { id?: string },
+): MaintenanceFormState {
   return {
     id: values?.id,
     vehicleId: values?.vehicleId ?? "",
@@ -104,10 +106,13 @@ function MaintenanceForm({
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>Moto</Label>
-          <Select value={value.vehicleId} onValueChange={(next) => onChange((current) => ({ ...current, vehicleId: next }))}>
+          <Label>Veículo</Label>
+          <Select
+            value={value.vehicleId}
+            onValueChange={(next) => onChange((current) => ({ ...current, vehicleId: next }))}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Selecione a moto" />
+              <SelectValue placeholder="Selecione o veículo" />
             </SelectTrigger>
             <SelectContent>
               {vehicles.map((vehicle) => (
@@ -120,17 +125,32 @@ function MaintenanceForm({
         </div>
         <div className="space-y-2">
           <Label>Data</Label>
-          <Input type="date" value={value.date} onChange={(event) => onChange((current) => ({ ...current, date: event.target.value }))} />
+          <Input
+            type="date"
+            value={value.date}
+            onChange={(event) => onChange((current) => ({ ...current, date: event.target.value }))}
+          />
         </div>
         <div className="space-y-2">
           <Label>Km atual</Label>
-          <Input type="number" value={value.odometerKm} onChange={(event) => onChange((current) => ({ ...current, odometerKm: Number(event.target.value) }))} />
+          <Input
+            type="number"
+            value={value.odometerKm}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, odometerKm: Number(event.target.value) }))
+            }
+          />
         </div>
         <div className="space-y-2">
           <Label>Pagamento</Label>
           <Select
             value={value.paymentMethod}
-            onValueChange={(next) => onChange((current) => ({ ...current, paymentMethod: next as MaintenanceFormState["paymentMethod"] }))}
+            onValueChange={(next) =>
+              onChange((current) => ({
+                ...current,
+                paymentMethod: next as MaintenanceFormState["paymentMethod"],
+              }))
+            }
           >
             <SelectTrigger>
               <SelectValue />
@@ -146,13 +166,22 @@ function MaintenanceForm({
         </div>
         <div className="space-y-2">
           <Label>Tipo</Label>
-          <Input value={value.type} onChange={(event) => onChange((current) => ({ ...current, type: event.target.value }))} placeholder="Ex.: troca preventiva" />
+          <Input
+            value={value.type}
+            onChange={(event) => onChange((current) => ({ ...current, type: event.target.value }))}
+            placeholder="Ex.: troca preventiva"
+          />
         </div>
         <div className="space-y-2">
           <Label>Categoria</Label>
           <Select
             value={value.category}
-            onValueChange={(next) => onChange((current) => ({ ...current, category: next as MaintenanceFormState["category"] }))}
+            onValueChange={(next) =>
+              onChange((current) => ({
+                ...current,
+                category: next as MaintenanceFormState["category"],
+              }))
+            }
           >
             <SelectTrigger>
               <SelectValue />
@@ -168,27 +197,57 @@ function MaintenanceForm({
         </div>
         <div className="space-y-2 md:col-span-2">
           <Label>Descrição</Label>
-          <Input value={value.description} onChange={(event) => onChange((current) => ({ ...current, description: event.target.value }))} />
+          <Input
+            value={value.description}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, description: event.target.value }))
+            }
+          />
         </div>
         <div className="space-y-2">
           <Label>Valor</Label>
-          <Input type="number" step="0.01" value={value.totalCost} onChange={(event) => onChange((current) => ({ ...current, totalCost: event.target.value }))} />
+          <Input
+            type="number"
+            step="0.01"
+            value={value.totalCost}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, totalCost: event.target.value }))
+            }
+          />
         </div>
         <div className="space-y-2">
           <Label>Oficina</Label>
-          <Input value={value.shop} onChange={(event) => onChange((current) => ({ ...current, shop: event.target.value }))} />
+          <Input
+            value={value.shop}
+            onChange={(event) => onChange((current) => ({ ...current, shop: event.target.value }))}
+          />
         </div>
         <div className="space-y-2">
           <Label>Repetir em meses</Label>
-          <Input type="number" value={value.recurringMonths} onChange={(event) => onChange((current) => ({ ...current, recurringMonths: event.target.value }))} />
+          <Input
+            type="number"
+            value={value.recurringMonths}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, recurringMonths: event.target.value }))
+            }
+          />
         </div>
         <div className="space-y-2">
           <Label>Repetir em km</Label>
-          <Input type="number" value={value.recurringKm} onChange={(event) => onChange((current) => ({ ...current, recurringKm: event.target.value }))} />
+          <Input
+            type="number"
+            value={value.recurringKm}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, recurringKm: event.target.value }))
+            }
+          />
         </div>
         <div className="space-y-2 md:col-span-2">
           <Label>Observações</Label>
-          <Input value={value.notes} onChange={(event) => onChange((current) => ({ ...current, notes: event.target.value }))} />
+          <Input
+            value={value.notes}
+            onChange={(event) => onChange((current) => ({ ...current, notes: event.target.value }))}
+          />
         </div>
       </div>
 
@@ -235,6 +294,7 @@ export function MaintenancePage() {
   const [editingForm, setEditingForm] = React.useState<MaintenanceFormState | null>(null);
   const [filters, setFilters] = React.useState<MaintenanceFilters>({
     month: selectedMonth,
+    vehicleId: "",
     category: "all",
     reminderStatus: "all",
   });
@@ -244,24 +304,48 @@ export function MaintenancePage() {
   }, [selectedMonth]);
 
   React.useEffect(() => {
-    if (snapshot?.vehicles[0]) {
-      setForm((current) => ({
-        ...current,
-        vehicleId: current.vehicleId || snapshot.vehicles[0].id,
-        odometerKm: current.odometerKm || snapshot.vehicles[0].currentOdometerKm,
-      }));
+    if (!snapshot?.vehicles.length) {
+      return;
     }
-  }, [snapshot]);
+
+    const fallbackVehicle = snapshot.vehicles.find((vehicle) => vehicle.id === filters.vehicleId) ?? snapshot.vehicles[0];
+
+    setFilters((current) => ({
+      ...current,
+      vehicleId: current.vehicleId || fallbackVehicle.id,
+    }));
+
+    setForm((current) => ({
+      ...current,
+      vehicleId: current.vehicleId || fallbackVehicle.id,
+      odometerKm: current.odometerKm || fallbackVehicle.currentOdometerKm,
+    }));
+  }, [filters.vehicleId, snapshot]);
 
   if (!initialized || !snapshot) {
     return <PageSkeleton cards={4} rows={3} />;
   }
 
-  const reminders = getMaintenanceReminders(snapshot);
-  const reminderByLogId = new Map(reminders.map((reminder) => [reminder.maintenanceLogId, reminder]));
-  const vehicleOptions = snapshot.vehicles.map((vehicle) => ({ id: vehicle.id, nickname: vehicle.nickname }));
+  if (!snapshot.vehicles.length) {
+    return (
+      <EmptyState
+        icon={Wrench}
+        title="Cadastre um veículo primeiro"
+        description="As manutenções precisam de um carro ou moto associado para gerar lembretes e custo real."
+      />
+    );
+  }
 
-  const filteredLogs = snapshot.maintenanceLogs
+  const reminders = getMaintenanceReminders(snapshot, filters.vehicleId || undefined);
+  const reminderByLogId = new Map(reminders.map((reminder) => [reminder.maintenanceLogId, reminder]));
+  const vehicleOptions = snapshot.vehicles.map((vehicle) => ({
+    id: vehicle.id,
+    nickname: vehicle.nickname,
+  }));
+  const selectedVehicle =
+    snapshot.vehicles.find((vehicle) => vehicle.id === filters.vehicleId) ?? snapshot.vehicles[0];
+  const scopedLogs = snapshot.maintenanceLogs.filter((item) => item.vehicleId === selectedVehicle.id);
+  const filteredLogs = scopedLogs
     .filter((item) => formatMonthKey(item.date) === filters.month)
     .filter((item) => (filters.category === "all" ? true : item.category === filters.category))
     .filter((item) => {
@@ -294,7 +378,7 @@ export function MaintenancePage() {
 
   function submitMaintenance(values: MaintenanceFormState, afterSubmit?: () => void) {
     if (!values.vehicleId) {
-      toast.error("Selecione a moto.");
+      toast.error("Selecione o veículo.");
       return;
     }
     if (!values.description.trim()) {
@@ -338,6 +422,7 @@ export function MaintenancePage() {
           <h1 className="font-heading text-3xl font-semibold text-zinc-50">
             Timeline de serviços com lembretes por data e quilometragem.
           </h1>
+          <p className="text-sm text-zinc-400">{selectedVehicle.nickname}</p>
         </div>
         <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
       </div>
@@ -366,7 +451,11 @@ export function MaintenancePage() {
         <SummaryCard
           icon={Route}
           label="Categoria mais cara"
-          value={topCategory ? maintenanceCategoryLabels[topCategory[0] as keyof typeof maintenanceCategoryLabels] : "Sem dados"}
+          value={
+            topCategory
+              ? maintenanceCategoryLabels[topCategory[0] as keyof typeof maintenanceCategoryLabels]
+              : "Sem dados"
+          }
           detail={topCategory ? formatCurrencyBRL(topCategory[1]) : "No período filtrado"}
           accent="from-amber-400/20 via-amber-500/10 to-transparent"
         />
@@ -403,8 +492,40 @@ export function MaintenancePage() {
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
+              <Label>Veículo</Label>
+              <Select
+                value={filters.vehicleId}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    vehicleId: value,
+                    reminderStatus: "all",
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicleOptions.map((vehicle) => (
+                    <SelectItem key={vehicle.id} value={vehicle.id}>
+                      {vehicle.nickname}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Categoria</Label>
-              <Select value={filters.category} onValueChange={(value) => setFilters((current) => ({ ...current, category: value as MaintenanceFilters["category"] }))}>
+              <Select
+                value={filters.category}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    category: value as MaintenanceFilters["category"],
+                  }))
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -420,7 +541,15 @@ export function MaintenancePage() {
             </div>
             <div className="space-y-2">
               <Label>Status do lembrete</Label>
-              <Select value={filters.reminderStatus} onValueChange={(value) => setFilters((current) => ({ ...current, reminderStatus: value as MaintenanceFilters["reminderStatus"] }))}>
+              <Select
+                value={filters.reminderStatus}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    reminderStatus: value as MaintenanceFilters["reminderStatus"],
+                  }))
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -484,8 +613,8 @@ export function MaintenancePage() {
                           </p>
                           {reminder ? (
                             <p className="text-xs text-zinc-500">
-                              {reminder.dueDate ? `Prazo: ${formatDateBR(reminder.dueDate)}` : "Sem data"}{" "}
-                              {reminder.dueKm ? `• ${reminder.dueKm} km` : ""}
+                              {reminder.dueDate ? `Prazo: ${formatDateBR(reminder.dueDate)}` : "Sem data"}
+                              {reminder.dueKm ? ` • ${reminder.dueKm} km` : ""}
                             </p>
                           ) : null}
                         </div>
@@ -500,7 +629,7 @@ export function MaintenancePage() {
             <EmptyState
               icon={Wrench}
               title="Nenhuma manutenção encontrada"
-              description="Ajuste os filtros ou registre um serviço para começar a timeline da moto."
+              description="Ajuste os filtros ou registre um serviço para começar a timeline do veículo."
             />
           )}
         </CardContent>
@@ -512,7 +641,7 @@ export function MaintenancePage() {
             <SheetHeader>
               <SheetTitle>Editar manutenção</SheetTitle>
               <SheetDescription>
-                Atualize a timeline e os próximos cuidados sem perder o vínculo financeiro da moto.
+                Atualize a timeline e os próximos cuidados sem perder o vínculo financeiro do veículo.
               </SheetDescription>
             </SheetHeader>
             <MaintenanceForm

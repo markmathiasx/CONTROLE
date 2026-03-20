@@ -1,6 +1,9 @@
 "use client";
 
 import * as React from "react";
+import type { Route } from "next";
+import { getYear, parseISO } from "date-fns";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Repeat, Sparkles, TrendingUp, Wallet, Wrench, Zap } from "lucide-react";
 import {
   Bar,
@@ -20,7 +23,12 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { MonthSwitcher } from "@/components/shared/month-switcher";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SummaryCard } from "@/components/shared/summary-card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   formatCompactCurrencyBRL,
@@ -29,8 +37,11 @@ import {
   formatMonthShortLabel,
   formatPercentage,
 } from "@/lib/formatters";
+import { mergeSearchParams } from "@/lib/utils";
 import { useFinanceStore } from "@/store/use-finance-store";
 import {
+  type PrintableReportStyle,
+  type ReportPeriod,
   getAutomationFeed,
   getConsolidatedMonthlyTrend,
   calculateMaintenanceTotals,
@@ -44,22 +55,110 @@ import {
   getMonthlyComparisons,
   getMonthlyEvolution,
   getProfitByProduct,
+  getPrintableSpendingReport,
   getRecurrenceInsights,
   getStoreConsumptionByFilament,
   getSpendByCategory,
   getSpendByCenter,
   getSpendByPaymentMethod,
   getStoreDashboardSummary,
+  getVehicleAnnualFixedCostSummary,
+  getVehicleFixedCostAgenda,
+  getVehiclePerformanceTable,
   getStoreMonthlyTrend,
   getStoreProductionInsights,
   getStoreWasteByItem,
 } from "@/utils/finance";
 
+const validPeriods = new Set<ReportPeriod>(["day", "week", "month", "year"]);
+const validStyles = new Set<PrintableReportStyle>(["neutral", "economy", "operational"]);
+const validTabs = new Set(["financeiro", "moto", "loja", "consolidado"]);
+
 export function ReportsPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const snapshot = useFinanceStore((state) => state.snapshot);
   const initialized = useFinanceStore((state) => state.initialized);
   const selectedMonth = useFinanceStore((state) => state.selectedMonth);
   const setSelectedMonth = useFinanceStore((state) => state.setSelectedMonth);
+  const [activeTab, setActiveTab] = React.useState(() => {
+    const value = searchParams.get("tab");
+    return value && validTabs.has(value) ? value : "financeiro";
+  });
+  const [selectedVehicleId, setSelectedVehicleId] = React.useState(
+    () => searchParams.get("vehicle") ?? "all",
+  );
+  const [printPeriod, setPrintPeriod] = React.useState<ReportPeriod>(() => {
+    const value = searchParams.get("period");
+    return value && validPeriods.has(value as ReportPeriod) ? (value as ReportPeriod) : "month";
+  });
+  const [printAnchorDate, setPrintAnchorDate] = React.useState(
+    () => searchParams.get("anchor") ?? new Date().toISOString().slice(0, 10),
+  );
+  const [reportStyle, setReportStyle] = React.useState<PrintableReportStyle>(() => {
+    const value = searchParams.get("style");
+    return value && validStyles.has(value as PrintableReportStyle)
+      ? (value as PrintableReportStyle)
+      : "neutral";
+  });
+
+  const updateQuery = React.useCallback(
+    (updates: Record<string, string | null | undefined>) => {
+      const query = mergeSearchParams(searchParams, updates);
+      router.replace((query ? `${pathname}?${query}` : pathname) as Route, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  React.useEffect(() => {
+    const nextTab = searchParams.get("tab");
+    const nextVehicle = searchParams.get("vehicle") ?? "all";
+    const nextPeriod = searchParams.get("period");
+    const nextAnchor = searchParams.get("anchor") ?? new Date().toISOString().slice(0, 10);
+    const nextStyle = searchParams.get("style");
+
+    const safeTab = nextTab && validTabs.has(nextTab) ? nextTab : "financeiro";
+    const safePeriod =
+      nextPeriod && validPeriods.has(nextPeriod as ReportPeriod)
+        ? (nextPeriod as ReportPeriod)
+        : "month";
+    const safeStyle =
+      nextStyle && validStyles.has(nextStyle as PrintableReportStyle)
+        ? (nextStyle as PrintableReportStyle)
+        : "neutral";
+
+    if (safeTab !== activeTab) setActiveTab(safeTab);
+    if (nextVehicle !== selectedVehicleId) setSelectedVehicleId(nextVehicle);
+    if (safePeriod !== printPeriod) setPrintPeriod(safePeriod);
+    if (nextAnchor !== printAnchorDate) setPrintAnchorDate(nextAnchor);
+    if (safeStyle !== reportStyle) setReportStyle(safeStyle);
+  }, [activeTab, printAnchorDate, printPeriod, reportStyle, searchParams, selectedVehicleId]);
+
+  React.useEffect(() => {
+    if (selectedVehicleId !== "all" && snapshot?.vehicles.length) {
+      if (!snapshot.vehicles.some((vehicle) => vehicle.id === selectedVehicleId)) {
+        setSelectedVehicleId("all");
+        updateQuery({ vehicle: null });
+      }
+    }
+  }, [selectedVehicleId, snapshot, updateQuery]);
+
+  const selectedVehicle =
+    selectedVehicleId === "all"
+      ? null
+      : snapshot?.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? null;
+  const selectedVehicleScope = selectedVehicle?.id ?? "all";
+  const printableReportHref = React.useMemo(() => {
+    const params = new URLSearchParams({
+      period: printPeriod,
+      anchor: printAnchorDate,
+      vehicle: selectedVehicleScope,
+      style: reportStyle,
+    });
+    return `/relatorios/imprimir?${params.toString()}`;
+  }, [printAnchorDate, printPeriod, reportStyle, selectedVehicleScope]);
+
   const reportData = React.useMemo(() => {
     if (!snapshot) {
       return null;
@@ -72,11 +171,18 @@ export function ReportsPage() {
       categoryData: getSpendByCategory(snapshot, selectedMonth).slice(0, 8),
       monthlyEvolution: getMonthlyEvolution(snapshot, 6),
       futureInstallments: getFutureInstallmentsByMonth(snapshot, selectedMonth, 6),
-      fuel: getMotoFuelInsights(snapshot, selectedMonth),
-      maintenance: calculateMaintenanceTotals(snapshot, selectedMonth),
-      motoTrend: getMotoMonthlyTrend(snapshot, 6),
-      motoCostByCategory: getMotoCostByCategory(snapshot, selectedMonth),
-      motoReminders: getMotoUpcomingReminders(snapshot, 5),
+      fuel: getMotoFuelInsights(snapshot, selectedMonth, selectedVehicleScope),
+      maintenance: calculateMaintenanceTotals(snapshot, selectedMonth, selectedVehicleScope),
+      motoTrend: getMotoMonthlyTrend(snapshot, 6, selectedVehicleScope),
+      motoCostByCategory: getMotoCostByCategory(snapshot, selectedMonth, selectedVehicleScope),
+      motoReminders: getMotoUpcomingReminders(snapshot, 8, selectedVehicleScope),
+      vehicleFixedCosts: getVehicleFixedCostAgenda(snapshot, selectedMonth, selectedVehicleScope, 12),
+      vehicleAnnualFixedCosts: getVehicleAnnualFixedCostSummary(
+        snapshot,
+        getYear(parseISO(`${selectedMonth}-01`)),
+        selectedVehicleScope,
+      ),
+      vehiclePerformance: getVehiclePerformanceTable(snapshot, selectedMonth),
       store: getStoreDashboardSummary(snapshot, selectedMonth),
       storeInsights: getStoreProductionInsights(snapshot, selectedMonth),
       storeMonthlyTrend: getStoreMonthlyTrend(snapshot, 6),
@@ -88,8 +194,14 @@ export function ReportsPage() {
       profitByProduct: getProfitByProduct(snapshot, selectedMonth).slice(0, 6),
       filamentConsumption: getStoreConsumptionByFilament(snapshot, selectedMonth).slice(0, 6),
       wasteByItem: getStoreWasteByItem(snapshot, selectedMonth).slice(0, 6),
+      printableReport: getPrintableSpendingReport(snapshot, {
+        anchorDate: printAnchorDate,
+        period: printPeriod,
+        vehicleId: selectedVehicleScope,
+        style: reportStyle,
+      }),
     };
-  }, [selectedMonth, snapshot]);
+  }, [printAnchorDate, printPeriod, reportStyle, selectedMonth, selectedVehicleScope, snapshot]);
 
   if (!initialized || !snapshot || !reportData) {
     return <PageSkeleton cards={4} rows={3} />;
@@ -107,6 +219,9 @@ export function ReportsPage() {
     motoTrend,
     motoCostByCategory,
     motoReminders,
+    vehicleFixedCosts,
+    vehicleAnnualFixedCosts,
+    vehiclePerformance,
     store,
     storeInsights,
     storeMonthlyTrend,
@@ -118,6 +233,7 @@ export function ReportsPage() {
     profitByProduct,
     filamentConsumption,
     wasteByItem,
+    printableReport,
   } = reportData;
 
   return (
@@ -126,7 +242,7 @@ export function ReportsPage() {
         <div className="space-y-1">
           <p className="text-sm uppercase tracking-[0.28em] text-zinc-500">Relatórios úteis</p>
           <h1 className="font-heading text-3xl font-semibold text-zinc-50">
-            Financeiro, moto, loja e consolidado sem misturar tudo.
+            Financeiro, automóvel, loja e consolidado sem misturar tudo.
           </h1>
         </div>
         <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
@@ -145,7 +261,7 @@ export function ReportsPage() {
         />
         <SummaryCard
           icon={Wrench}
-          label="Moto no período"
+          label="Automóvel no período"
           value={formatCurrencyBRL(fuel.totalCost + maintenance.totalCost)}
           detail={`${fuel.totalLiters} L • ${motoReminders.length} lembrete(s)`}
           accent="from-amber-400/20 via-amber-500/10 to-transparent"
@@ -170,10 +286,17 @@ export function ReportsPage() {
         />
       </div>
 
-      <Tabs defaultValue="financeiro" className="space-y-4">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => {
+          setActiveTab(value);
+          updateQuery({ tab: value === "financeiro" ? null : value });
+        }}
+        className="space-y-4"
+      >
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
-          <TabsTrigger value="moto">Moto</TabsTrigger>
+          <TabsTrigger value="moto">Automóvel</TabsTrigger>
           <TabsTrigger value="loja">Loja</TabsTrigger>
           <TabsTrigger value="consolidado">Consolidado</TabsTrigger>
         </TabsList>
@@ -268,7 +391,7 @@ export function ReportsPage() {
               </div>
             </ChartCard>
 
-            <ChartCard title="Gastos por centro" description="Pessoal, casal, moto e loja lado a lado.">
+            <ChartCard title="Gastos por centro" description="Pessoal, casal, automóvel e loja lado a lado.">
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={centerData.map((item) => ({ name: item.center?.name ?? "Centro", total: item.total }))}>
@@ -389,16 +512,47 @@ export function ReportsPage() {
 
         <TabsContent value="moto" className="space-y-4">
           <Card>
-            <CardContent className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5">
+            <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm font-medium text-zinc-100">Escopo do automóvel</p>
+                <p className="text-sm text-zinc-400">
+                  {selectedVehicle
+                    ? `${selectedVehicle.nickname} • ${selectedVehicle.brand} ${selectedVehicle.model} ${selectedVehicle.year}`
+                    : `${snapshot.vehicles.length} veículo(s) no consolidado da frota`}
+                </p>
+              </div>
+              <Select
+                value={selectedVehicleScope}
+                onValueChange={(value) => {
+                  setSelectedVehicleId(value);
+                  updateQuery({ vehicle: value === "all" ? null : value });
+                }}
+              >
+                <SelectTrigger className="sm:w-[260px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os veículos</SelectItem>
+                  {snapshot.vehicles.map((vehicle) => (
+                    <SelectItem key={vehicle.id} value={vehicle.id}>
+                      {vehicle.nickname}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-6">
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3 lg:col-span-2">
                 <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Leitura rápida</p>
                 <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
-                  {motoReminders.some((item) => item.isOverdue) ? "Moto pedindo atenção" : "Moto sob controle"}
+                  {motoReminders.some((item) => item.isOverdue) ? "Veículo pedindo atenção" : "Operação em dia"}
                 </p>
                 <p className="mt-1 text-sm text-zinc-400">
                   {motoReminders.length
-                    ? `${motoReminders.length} lembrete(s) ativos e custo de ${formatCurrencyBRL(fuel.totalCost + maintenance.totalCost)} no período`
-                    : "Sem lembretes ativos no recorte selecionado."}
+                    ? `${motoReminders.length} lembrete(s)/obrigação(ões) ativos e custo de ${formatCurrencyBRL(fuel.totalCost + maintenance.totalCost)} no período`
+                    : "Sem alertas ativos no recorte selecionado."}
                 </p>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
@@ -413,16 +567,23 @@ export function ReportsPage() {
                 <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Odômetro</p>
                 <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{fuel.lastOdometerKm} km</p>
               </div>
+              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Custos anuais</p>
+                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                  {formatCompactCurrencyBRL(vehicleAnnualFixedCosts.total)}
+                </p>
+              </div>
             </CardContent>
           </Card>
 
-          <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-7">
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Gasolina</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(fuel.totalCost)}</p></CardContent></Card>
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Litros</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{fuel.totalLiters} L</p></CardContent></Card>
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Manutenção</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(maintenance.totalCost)}</p></CardContent></Card>
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Preço médio / L</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(fuel.averagePricePerLiter)}</p></CardContent></Card>
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Ticket médio</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(fuel.averageTicket)}</p></CardContent></Card>
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Odômetro</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{fuel.lastOdometerKm} km</p></CardContent></Card>
+            <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Agenda anual</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{vehicleFixedCosts.length}</p></CardContent></Card>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartCard title="Abastecimentos" description="Histórico do período.">
@@ -438,7 +599,7 @@ export function ReportsPage() {
                 ))}
               </div>
             </ChartCard>
-            <ChartCard title="Manutenção por categoria" description="Onde a moto mais consumiu.">
+            <ChartCard title="Manutenção por categoria" description="Onde o veículo mais consumiu.">
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -457,7 +618,50 @@ export function ReportsPage() {
             </ChartCard>
           </div>
           <div className="grid gap-4 xl:grid-cols-2">
-            <ChartCard title="Evolução mensal da moto" description="Combustível e manutenção dos últimos meses.">
+            <ChartCard title="Comparativo por veículo" description="Custo e eficiência lado a lado para todos os veículos.">
+              <div className="space-y-3">
+                {vehiclePerformance.map((item) => (
+                  <div key={item.vehicleId} className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm text-zinc-100">{item.vehicleName}</p>
+                        <p className="text-xs text-zinc-400">
+                          {item.distanceKm} km • {item.liters} L • {item.kmPerLiter ? `${item.kmPerLiter} km/L` : "sem média"}
+                        </p>
+                      </div>
+                      <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.monthlyCost)}</p>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-4">
+                      <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-2"><p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Combustível</p><p className="mt-1 text-sm text-zinc-100">{formatCompactCurrencyBRL(item.fuelCost)}</p></div>
+                      <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-2"><p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Manutenção</p><p className="mt-1 text-sm text-zinc-100">{formatCompactCurrencyBRL(item.maintenanceCost)}</p></div>
+                      <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-2"><p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Custo/km</p><p className="mt-1 text-sm text-zinc-100">{item.costPerKm ? formatCurrencyBRL(item.costPerKm) : "--"}</p></div>
+                      <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-2"><p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Custos anuais</p><p className="mt-1 text-sm text-zinc-100">{formatCompactCurrencyBRL(item.annualFixedCost)}</p></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ChartCard>
+            <ChartCard title="Custos fixos anuais" description="IPVA, seguro e licenciamento já entram na agenda do automóvel.">
+              <div className="space-y-3">
+                {vehicleFixedCosts.length ? vehicleFixedCosts.map((item) => (
+                  <div key={item.id} className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                    <div>
+                      <p className="text-sm text-zinc-100">{item.title}</p>
+                      <p className="text-xs text-zinc-400">{item.dueDate ? formatDateBR(item.dueDate) : "Sem data"}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.amount)}</p>
+                      <p className={`text-xs ${item.isOverdue ? "text-rose-300" : "text-amber-300"}`}>{item.isOverdue ? "Vencido" : "Programado"}</p>
+                    </div>
+                  </div>
+                )) : (
+                  <p className="text-sm text-zinc-400">Sem custos fixos configurados para este recorte.</p>
+                )}
+              </div>
+            </ChartCard>
+          </div>
+          <div className="grid gap-4 xl:grid-cols-2">
+            <ChartCard title="Evolução mensal do veículo" description="Combustível e manutenção dos últimos meses.">
               <div className="h-72">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={motoTrend.map((item) => ({ month: formatMonthShortLabel(item.month), combustivel: item.fuelCost, manutencao: item.maintenanceCost }))}>
@@ -470,13 +674,15 @@ export function ReportsPage() {
                 </ResponsiveContainer>
               </div>
             </ChartCard>
-            <ChartCard title="Próximos cuidados" description="Lembretes derivados das recorrências por tempo ou quilometragem.">
+            <ChartCard title="Próximos cuidados" description="Lembretes por meses/km e obrigações anuais do automóvel.">
               <div className="space-y-3">
                 {motoReminders.length ? motoReminders.map((item) => (
                   <div key={item.id} className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
                     <div>
                       <p className="text-sm text-zinc-100">{item.title}</p>
-                      <p className="text-xs text-zinc-400">{item.dueDate ? formatDateBR(item.dueDate) : "Sem data"} {item.dueKm ? `• ${item.dueKm} km` : ""}</p>
+                      <p className="text-xs text-zinc-400">
+                        {item.dueDate ? formatDateBR(item.dueDate) : "Sem data"} {item.dueKm ? `• ${item.dueKm} km` : ""} {"amount" in item && item.amount ? `• ${formatCurrencyBRL(item.amount)}` : ""}
+                      </p>
                     </div>
                     <p className={`text-sm font-medium ${item.isOverdue ? "text-rose-300" : "text-amber-300"}`}>{item.isOverdue ? "Atrasado" : "Próximo"}</p>
                   </div>
@@ -637,6 +843,203 @@ export function ReportsPage() {
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Saldo líquido</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(consolidated.net)}</p></CardContent></Card>
           </div>
 
+          <Card>
+            <CardContent className="space-y-4 p-5">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-zinc-100">Relatório imprimível / PDF</p>
+                  <p className="text-sm text-zinc-400">
+                    Gere um consolidado em formato de fatura com filtros por período e escopo do automóvel.
+                  </p>
+                </div>
+                <Button asChild className="rounded-2xl">
+                  <a href={printableReportHref} target="_blank" rel="noreferrer">
+                    Pré-visualizar relatório
+                  </a>
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { value: "day", label: "Dia" },
+                  { value: "week", label: "Semana" },
+                  { value: "month", label: "Mês" },
+                  { value: "year", label: "Ano" },
+                ].map((item) => (
+                  <Button
+                    key={item.value}
+                    type="button"
+                    variant={printPeriod === item.value ? "default" : "secondary"}
+                    className="rounded-2xl"
+                    onClick={() => {
+                      const value = item.value as ReportPeriod;
+                      setPrintPeriod(value);
+                      updateQuery({ period: value === "month" ? null : value });
+                    }}
+                  >
+                    {item.label}
+                  </Button>
+                ))}
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-5">
+                <div className="space-y-2">
+                  <Label>Período</Label>
+                  <Select
+                    value={printPeriod}
+                    onValueChange={(value) => {
+                      setPrintPeriod(value as ReportPeriod);
+                      updateQuery({ period: value === "month" ? null : value });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">Dia</SelectItem>
+                      <SelectItem value="week">Semana</SelectItem>
+                      <SelectItem value="month">Mês</SelectItem>
+                      <SelectItem value="year">Ano</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Data base</Label>
+                  <Input
+                    type="date"
+                    value={printAnchorDate}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setPrintAnchorDate(value);
+                      updateQuery({ anchor: value });
+                    }}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Escopo do automóvel</Label>
+                  <Select
+                    value={selectedVehicleScope}
+                    onValueChange={(value) => {
+                      setSelectedVehicleId(value);
+                      updateQuery({ vehicle: value === "all" ? null : value });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os veículos</SelectItem>
+                      {snapshot.vehicles.map((vehicle) => (
+                        <SelectItem key={vehicle.id} value={vehicle.id}>
+                          {vehicle.nickname}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Modelo de análise</Label>
+                  <Select
+                    value={reportStyle}
+                    onValueChange={(value) => {
+                      setReportStyle(value as PrintableReportStyle);
+                      updateQuery({ style: value === "neutral" ? null : value });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="neutral">Equilibrado</SelectItem>
+                      <SelectItem value="economy">Economia</SelectItem>
+                      <SelectItem value="operational">Operacional</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Preview</p>
+                  <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(printableReport.totalExpense)}</p>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    {printableReport.periodLabel} • saldo {formatCurrencyBRL(printableReport.net)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="space-y-3 rounded-[28px] border border-white/8 bg-white/6 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-medium text-zinc-100">Prévia do relatório</p>
+                      <p className="text-sm text-zinc-400">{printableReport.headline}</p>
+                    </div>
+                    <Badge variant={printableReport.net >= 0 ? "default" : "danger"}>
+                      {printableReport.net >= 0 ? "Fechamento positivo" : "Fechamento negativo"}
+                    </Badge>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Receitas</p>
+                      <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(printableReport.totalIncome)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Despesas</p>
+                      <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(printableReport.totalExpense)}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Automóvel</p>
+                      <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(printableReport.automovel.totalCost)}</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Maior gasto</p>
+                      <p className="mt-2 text-sm font-medium text-zinc-100">
+                        {printableReport.biggestExpense?.description ?? "Sem destaque"}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-400">
+                        {printableReport.biggestExpense
+                          ? `${formatDateBR(printableReport.biggestExpense.date)} • ${formatCurrencyBRL(printableReport.biggestExpense.amount)}`
+                          : "Nenhuma despesa encontrada no período"}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                      <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Reserva mensal do automóvel</p>
+                      <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
+                        {formatCurrencyBRL(printableReport.automovel.monthlyReserveTarget)}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-400">{printableReport.automovel.scopeLabel}</p>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {printableReport.topCategories.slice(0, 3).map((item) => (
+                      <div key={item.label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+                        <div>
+                          <p className="text-sm text-zinc-100">{item.label}</p>
+                          <p className="text-xs text-zinc-400">{Math.round(item.share)}% das despesas</p>
+                        </div>
+                        <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.total)}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-[28px] border border-white/8 bg-white/6 p-4">
+                  <p className="font-medium text-zinc-100">Recomendações automáticas</p>
+                  {printableReport.recommendations.map((recommendation) => (
+                    <div key={recommendation} className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3 text-sm text-zinc-300">
+                      {recommendation}
+                    </div>
+                  ))}
+                  {printableReport.automovel.coverageWarnings.length ? (
+                    <div className="rounded-2xl border border-amber-400/20 bg-amber-500/8 px-4 py-3 text-sm text-amber-50">
+                      {printableReport.automovel.coverageWarnings.join(" ")}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <ChartCard title="Comparativo mês a mês" description="Receita, gasto e fatura nos últimos meses.">
               <div className="h-80">
@@ -691,7 +1094,7 @@ export function ReportsPage() {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <ChartCard title="Consolidado geral por módulo" description="Receita e custo pessoal, moto e loja no mesmo horizonte.">
+            <ChartCard title="Consolidado geral por módulo" description="Receita e custo pessoal, automóvel e loja no mesmo horizonte.">
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart

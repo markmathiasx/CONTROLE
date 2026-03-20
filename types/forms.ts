@@ -10,6 +10,7 @@ import type {
   StoreOrderStatus,
   SupplyUnit,
   ThemeMode,
+  VehicleType,
   WalletType,
 } from "@/types/domain";
 
@@ -89,6 +90,36 @@ export interface FuelLogFormValues {
   paymentMethod: PaymentMethod;
 }
 
+export interface VehicleFixedCostFormValues {
+  enabled: boolean;
+  amount: number;
+  dueMonth: number;
+  dueDay: number;
+  notes?: string;
+}
+
+export interface VehicleFormValues {
+  id?: string;
+  vehicleType: VehicleType;
+  brand: string;
+  model: string;
+  year: number;
+  nickname: string;
+  plate?: string;
+  fuelType: string;
+  currentOdometerKm: number;
+  averageCityKmPerLiter?: number;
+  averageHighwayKmPerLiter?: number;
+  tankCapacityLiters?: number;
+  monthlyDistanceGoalKm?: number;
+  fixedCosts: {
+    ipva: VehicleFixedCostFormValues;
+    insurance: VehicleFixedCostFormValues;
+    licensing: VehicleFixedCostFormValues;
+  };
+  notes?: string;
+}
+
 export interface MaintenanceLogFormValues {
   id?: string;
   vehicleId: string;
@@ -138,12 +169,14 @@ export interface StockAdjustmentFormValues {
 
 export interface FuelFilters {
   month: string;
+  vehicleId: string;
   paymentMethod: PaymentMethod | "all";
   station: string;
 }
 
 export interface MaintenanceFilters {
   month: string;
+  vehicleId: string;
   category: MaintenanceCategory | "all";
   reminderStatus: "all" | "overdue" | "upcoming" | "none";
 }

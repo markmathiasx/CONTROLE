@@ -50,6 +50,16 @@ export type WalletType = (typeof wallets)[number];
 export const categoryScopes = ["finance", "moto", "store", "shared"] as const;
 export type CategoryScope = (typeof categoryScopes)[number];
 
+export const vehicleTypes = ["motorcycle", "car"] as const;
+export type VehicleType = (typeof vehicleTypes)[number];
+
+export const vehicleFixedCostKinds = [
+  "ipva",
+  "insurance",
+  "licensing",
+] as const;
+export type VehicleFixedCostKind = (typeof vehicleFixedCostKinds)[number];
+
 export const supplyUnits = ["g", "ml", "l", "unit", "sheet", "m"] as const;
 export type SupplyUnit = (typeof supplyUnits)[number];
 
@@ -255,6 +265,7 @@ export interface RecurrenceRule extends BaseEntity {
 export interface Vehicle extends BaseEntity {
   workspaceId: string;
   centerId: string;
+  vehicleType?: VehicleType;
   brand: string;
   model: string;
   year: number;
@@ -262,6 +273,26 @@ export interface Vehicle extends BaseEntity {
   plate?: string | null;
   fuelType: string;
   currentOdometerKm: number;
+  averageCityKmPerLiter?: number | null;
+  averageHighwayKmPerLiter?: number | null;
+  tankCapacityLiters?: number | null;
+  monthlyDistanceGoalKm?: number | null;
+  fixedCosts?: VehicleFixedCostSettings | null;
+  notes?: string | null;
+}
+
+export interface VehicleFixedCostRule {
+  enabled: boolean;
+  amount: number;
+  dueMonth: number;
+  dueDay: number;
+  notes?: string | null;
+}
+
+export interface VehicleFixedCostSettings {
+  ipva?: VehicleFixedCostRule | null;
+  insurance?: VehicleFixedCostRule | null;
+  licensing?: VehicleFixedCostRule | null;
 }
 
 export interface FuelLog extends BaseEntity {

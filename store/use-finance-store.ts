@@ -20,6 +20,7 @@ import type {
   StockAdjustmentFormValues,
   StoreOrderFormValues,
   SupplyItemFormValues,
+  VehicleFormValues,
 } from "@/types/forms";
 import { generateInstallmentsForTransaction } from "@/utils/installments";
 import {
@@ -69,6 +70,8 @@ interface FinanceState {
   toggleProfileActive: (centerId: string) => void;
   saveFuelLog: (values: FuelLogFormValues) => void;
   deleteFuelLog: (id: string) => void;
+  saveVehicle: (values: VehicleFormValues) => void;
+  deleteVehicle: (id: string) => void;
   saveMaintenanceLog: (values: MaintenanceLogFormValues) => void;
   deleteMaintenanceLog: (id: string) => void;
   saveFilamentPurchase: (values: FilamentPurchaseFormValues) => void;
@@ -758,6 +761,86 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   },
   toggleProfileActive(centerId) {
     get().toggleCenterActive(centerId);
+  },
+  saveVehicle(values) {
+    const current = get().snapshot;
+    const actorUserId = current ? resolveActorUserId(current, get().activeUserId) : null;
+    const next = updateSnapshot(current, (draft) => {
+      const now = new Date().toISOString();
+      const centerId = getCenterIdByKind(draft, "moto");
+      const existing = values.id ? draft.vehicles.find((item) => item.id === values.id) : null;
+      const payload = applyAuditFields({
+        id: values.id ?? createId("vehicle"),
+        workspaceId: draft.workspace.id,
+        centerId,
+        vehicleType: values.vehicleType,
+        brand: values.brand.trim(),
+        model: values.model.trim(),
+        year: values.year,
+        nickname: values.nickname.trim(),
+        plate: values.plate?.trim() || null,
+        fuelType: values.fuelType.trim(),
+        currentOdometerKm: values.currentOdometerKm,
+        averageCityKmPerLiter: values.averageCityKmPerLiter ?? null,
+        averageHighwayKmPerLiter: values.averageHighwayKmPerLiter ?? null,
+        tankCapacityLiters: values.tankCapacityLiters ?? null,
+        monthlyDistanceGoalKm: values.monthlyDistanceGoalKm ?? null,
+        fixedCosts: {
+          ipva: {
+            enabled: values.fixedCosts.ipva.enabled,
+            amount: roundCurrency(values.fixedCosts.ipva.amount),
+            dueMonth: values.fixedCosts.ipva.dueMonth,
+            dueDay: values.fixedCosts.ipva.dueDay,
+            notes: values.fixedCosts.ipva.notes?.trim() || null,
+          },
+          insurance: {
+            enabled: values.fixedCosts.insurance.enabled,
+            amount: roundCurrency(values.fixedCosts.insurance.amount),
+            dueMonth: values.fixedCosts.insurance.dueMonth,
+            dueDay: values.fixedCosts.insurance.dueDay,
+            notes: values.fixedCosts.insurance.notes?.trim() || null,
+          },
+          licensing: {
+            enabled: values.fixedCosts.licensing.enabled,
+            amount: roundCurrency(values.fixedCosts.licensing.amount),
+            dueMonth: values.fixedCosts.licensing.dueMonth,
+            dueDay: values.fixedCosts.licensing.dueDay,
+            notes: values.fixedCosts.licensing.notes?.trim() || null,
+          },
+        },
+        notes: values.notes?.trim() || null,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+      }, actorUserId, existing);
+      const index = draft.vehicles.findIndex((item) => item.id === payload.id);
+      if (index >= 0) {
+        draft.vehicles[index] = { ...draft.vehicles[index], ...payload, createdAt: draft.vehicles[index].createdAt };
+      } else {
+        draft.vehicles.unshift(payload);
+      }
+    });
+
+    if (next) {
+      set({ snapshot: next });
+      void get().persistNow();
+    }
+  },
+  deleteVehicle(id) {
+    const current = get().snapshot;
+    const next = updateSnapshot(current, (draft) => {
+      if (draft.vehicles.length <= 1) {
+        throw new Error("Mantenha pelo menos um veículo cadastrado.");
+      }
+      if (draft.fuelLogs.some((item) => item.vehicleId === id) || draft.maintenanceLogs.some((item) => item.vehicleId === id)) {
+        throw new Error("Remova os abastecimentos e manutenções vinculados antes de excluir o veículo.");
+      }
+      draft.vehicles = draft.vehicles.filter((item) => item.id !== id);
+    });
+
+    if (next) {
+      set({ snapshot: next });
+      void get().persistNow();
+    }
   },
   saveFuelLog(values) {
     const current = get().snapshot;

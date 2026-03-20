@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Droplets, Fuel, GaugeCircle, Receipt } from "lucide-react";
+import { Droplets, Fuel, GaugeCircle, Receipt, Route } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ import { formatCurrencyBRL, formatDateBR } from "@/lib/formatters";
 import { formatMonthKey } from "@/lib/utils";
 import { useFinanceStore } from "@/store/use-finance-store";
 import type { FuelFilters, FuelLogFormValues } from "@/types/forms";
+import { getMotoFuelInsights } from "@/utils/finance";
 import { solveFuelValues } from "@/utils/operations";
 
 type FuelFormState = {
@@ -104,10 +105,13 @@ function FuelLogForm({
     <div className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>Moto</Label>
-          <Select value={value.vehicleId} onValueChange={(next) => onChange((current) => ({ ...current, vehicleId: next }))}>
+          <Label>Veículo</Label>
+          <Select
+            value={value.vehicleId}
+            onValueChange={(next) => onChange((current) => ({ ...current, vehicleId: next }))}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Selecione a moto" />
+              <SelectValue placeholder="Selecione o veículo" />
             </SelectTrigger>
             <SelectContent>
               {vehicles.map((vehicle) => (
@@ -120,33 +124,70 @@ function FuelLogForm({
         </div>
         <div className="space-y-2">
           <Label>Data</Label>
-          <Input type="date" value={value.date} onChange={(event) => onChange((current) => ({ ...current, date: event.target.value }))} />
+          <Input
+            type="date"
+            value={value.date}
+            onChange={(event) => onChange((current) => ({ ...current, date: event.target.value }))}
+          />
         </div>
         <div className="space-y-2">
           <Label>Odômetro (km)</Label>
-          <Input type="number" value={value.odometerKm} onChange={(event) => onChange((current) => ({ ...current, odometerKm: Number(event.target.value) }))} />
+          <Input
+            type="number"
+            value={value.odometerKm}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, odometerKm: Number(event.target.value) }))
+            }
+          />
         </div>
         <div className="space-y-2">
           <Label>Preço por litro</Label>
-          <Input type="number" step="0.01" value={value.pricePerLiter} onChange={(event) => onChange((current) => ({ ...current, pricePerLiter: event.target.value }))} />
+          <Input
+            type="number"
+            step="0.01"
+            value={value.pricePerLiter}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, pricePerLiter: event.target.value }))
+            }
+          />
         </div>
         <div className="space-y-2">
           <Label>Valor total</Label>
-          <Input type="number" step="0.01" value={value.totalCost} onChange={(event) => onChange((current) => ({ ...current, totalCost: event.target.value }))} />
+          <Input
+            type="number"
+            step="0.01"
+            value={value.totalCost}
+            onChange={(event) =>
+              onChange((current) => ({ ...current, totalCost: event.target.value }))
+            }
+          />
         </div>
         <div className="space-y-2">
           <Label>Litros</Label>
-          <Input type="number" step="0.01" value={value.liters} onChange={(event) => onChange((current) => ({ ...current, liters: event.target.value }))} />
+          <Input
+            type="number"
+            step="0.01"
+            value={value.liters}
+            onChange={(event) => onChange((current) => ({ ...current, liters: event.target.value }))}
+          />
         </div>
         <div className="space-y-2">
           <Label>Posto</Label>
-          <Input value={value.station} onChange={(event) => onChange((current) => ({ ...current, station: event.target.value }))} />
+          <Input
+            value={value.station}
+            onChange={(event) => onChange((current) => ({ ...current, station: event.target.value }))}
+          />
         </div>
         <div className="space-y-2">
           <Label>Pagamento</Label>
           <Select
             value={value.paymentMethod}
-            onValueChange={(next) => onChange((current) => ({ ...current, paymentMethod: next as FuelFormState["paymentMethod"] }))}
+            onValueChange={(next) =>
+              onChange((current) => ({
+                ...current,
+                paymentMethod: next as FuelFormState["paymentMethod"],
+              }))
+            }
           >
             <SelectTrigger>
               <SelectValue />
@@ -162,7 +203,10 @@ function FuelLogForm({
         </div>
         <div className="space-y-2 md:col-span-2">
           <Label>Observações</Label>
-          <Input value={value.notes} onChange={(event) => onChange((current) => ({ ...current, notes: event.target.value }))} />
+          <Input
+            value={value.notes}
+            onChange={(event) => onChange((current) => ({ ...current, notes: event.target.value }))}
+          />
         </div>
       </div>
 
@@ -182,7 +226,9 @@ function FuelLogForm({
           <div>
             <p className="text-sm text-zinc-400">Preço por litro</p>
             <p className="font-heading text-xl text-zinc-50">
-              {value.pricePerLiter ? formatCurrencyBRL(Number(value.pricePerLiter)) : formatCurrencyBRL(0)}
+              {value.pricePerLiter
+                ? formatCurrencyBRL(Number(value.pricePerLiter))
+                : formatCurrencyBRL(0)}
             </p>
           </div>
         </div>
@@ -213,6 +259,7 @@ export function FuelPage() {
   const [editingForm, setEditingForm] = React.useState<FuelFormState | null>(null);
   const [filters, setFilters] = React.useState<FuelFilters>({
     month: selectedMonth,
+    vehicleId: "",
     paymentMethod: "all",
     station: "all",
   });
@@ -222,28 +269,49 @@ export function FuelPage() {
   }, [selectedMonth]);
 
   React.useEffect(() => {
-    if (snapshot?.vehicles[0]) {
-      setForm((current) => ({
-        ...current,
-        vehicleId: current.vehicleId || snapshot.vehicles[0].id,
-        odometerKm: current.odometerKm || snapshot.vehicles[0].currentOdometerKm,
-      }));
+    if (!snapshot?.vehicles.length) {
+      return;
     }
-  }, [snapshot]);
+
+    const fallbackVehicle = snapshot.vehicles.find((vehicle) => vehicle.id === filters.vehicleId) ?? snapshot.vehicles[0];
+
+    setFilters((current) => ({
+      ...current,
+      vehicleId: current.vehicleId || fallbackVehicle.id,
+    }));
+
+    setForm((current) => ({
+      ...current,
+      vehicleId: current.vehicleId || fallbackVehicle.id,
+      odometerKm: current.odometerKm || fallbackVehicle.currentOdometerKm,
+    }));
+  }, [filters.vehicleId, snapshot]);
 
   if (!initialized || !snapshot) {
     return <PageSkeleton cards={4} rows={3} />;
+  }
+
+  if (!snapshot.vehicles.length) {
+    return (
+      <EmptyState
+        icon={Fuel}
+        title="Cadastre um veículo primeiro"
+        description="Os abastecimentos precisam de um carro ou moto associado para calcular odômetro e custo real."
+      />
+    );
   }
 
   const vehicleOptions = snapshot.vehicles.map((vehicle) => ({
     id: vehicle.id,
     nickname: vehicle.nickname,
   }));
+  const selectedVehicle =
+    snapshot.vehicles.find((vehicle) => vehicle.id === filters.vehicleId) ?? snapshot.vehicles[0];
+  const scopedLogs = snapshot.fuelLogs.filter((item) => item.vehicleId === selectedVehicle.id);
   const stationOptions = Array.from(
-    new Set(snapshot.fuelLogs.map((item) => item.station).filter((item): item is string => Boolean(item))),
+    new Set(scopedLogs.map((item) => item.station).filter((item): item is string => Boolean(item))),
   );
-
-  const filteredLogs = snapshot.fuelLogs
+  const filteredLogs = scopedLogs
     .filter((item) => formatMonthKey(item.date) === filters.month)
     .filter((item) => (filters.paymentMethod === "all" ? true : item.paymentMethod === filters.paymentMethod))
     .filter((item) => (filters.station === "all" ? true : (item.station ?? "Sem posto") === filters.station))
@@ -253,11 +321,12 @@ export function FuelPage() {
   const totalCost = filteredLogs.reduce((sum, item) => sum + item.totalCost, 0);
   const totalLiters = filteredLogs.reduce((sum, item) => sum + item.liters, 0);
   const averagePricePerLiter = totalLiters ? totalCost / totalLiters : 0;
-  const lastOdometer = filteredLogs[0]?.odometerKm ?? snapshot.vehicles[0]?.currentOdometerKm ?? 0;
+  const lastOdometer = filteredLogs[0]?.odometerKm ?? selectedVehicle.currentOdometerKm;
+  const fuelInsights = getMotoFuelInsights(snapshot, filters.month, selectedVehicle.id);
 
   function submitFuel(values: FuelFormState, afterSubmit?: () => void) {
     if (!values.vehicleId) {
-      toast.error("Selecione a moto.");
+      toast.error("Selecione o veículo.");
       return;
     }
 
@@ -266,7 +335,10 @@ export function FuelPage() {
       return;
     }
 
-    if ((!values.totalCost || Number(values.totalCost) <= 0) && (!values.liters || Number(values.liters) <= 0)) {
+    if (
+      (!values.totalCost || Number(values.totalCost) <= 0) &&
+      (!values.liters || Number(values.liters) <= 0)
+    ) {
       toast.error("Informe valor total ou litros para concluir o abastecimento.");
       return;
     }
@@ -296,6 +368,7 @@ export function FuelPage() {
           <h1 className="font-heading text-3xl font-semibold text-zinc-50">
             Registre combustível com cálculo automático e histórico útil.
           </h1>
+          <p className="text-sm text-zinc-400">{selectedVehicle.nickname}</p>
         </div>
         <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
       </div>
@@ -311,21 +384,29 @@ export function FuelPage() {
           icon={Droplets}
           label="Litros"
           value={`${totalLiters.toFixed(2)} L`}
-          detail="No período filtrado"
+          detail={`Distância: ${fuelInsights.monthlyDistanceKm} km`}
           accent="from-cyan-400/20 via-cyan-500/10 to-transparent"
         />
         <SummaryCard
           icon={Fuel}
           label="Preço médio / L"
           value={formatCurrencyBRL(averagePricePerLiter)}
-          detail="Com base nos registros filtrados"
+          detail={
+            fuelInsights.actualKmPerLiter
+              ? `Consumo real: ${fuelInsights.actualKmPerLiter} km/L`
+              : "Consumo real aparece com mais histórico"
+          }
           accent="from-emerald-400/20 via-emerald-500/10 to-transparent"
         />
         <SummaryCard
           icon={GaugeCircle}
           label="Última quilometragem"
           value={`${lastOdometer} km`}
-          detail="Odômetro mais recente"
+          detail={
+            fuelInsights.averageCostPerKm
+              ? `${formatCurrencyBRL(fuelInsights.averageCostPerKm)}/km`
+              : "Odômetro mais recente"
+          }
           accent="from-violet-400/20 via-violet-500/10 to-transparent"
         />
       </div>
@@ -361,8 +442,35 @@ export function FuelPage() {
         <CardContent className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
+              <Label>Veículo</Label>
+              <Select
+                value={filters.vehicleId}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    vehicleId: value,
+                    station: "all",
+                  }))
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {vehicleOptions.map((vehicle) => (
+                    <SelectItem key={vehicle.id} value={vehicle.id}>
+                      {vehicle.nickname}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label>Posto</Label>
-              <Select value={filters.station} onValueChange={(value) => setFilters((current) => ({ ...current, station: value }))}>
+              <Select
+                value={filters.station}
+                onValueChange={(value) => setFilters((current) => ({ ...current, station: value }))}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -380,7 +488,12 @@ export function FuelPage() {
               <Label>Pagamento</Label>
               <Select
                 value={filters.paymentMethod}
-                onValueChange={(value) => setFilters((current) => ({ ...current, paymentMethod: value as FuelFilters["paymentMethod"] }))}
+                onValueChange={(value) =>
+                  setFilters((current) => ({
+                    ...current,
+                    paymentMethod: value as FuelFilters["paymentMethod"],
+                  }))
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -447,7 +560,7 @@ export function FuelPage() {
             ))
           ) : (
             <EmptyState
-              icon={Droplets}
+              icon={Route}
               title="Nenhum abastecimento encontrado"
               description="Ajuste os filtros ou registre um novo abastecimento para montar o histórico."
             />

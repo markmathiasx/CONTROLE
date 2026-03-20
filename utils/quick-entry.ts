@@ -26,7 +26,7 @@ const paymentAliases: Record<string, PaymentMethod> = {
 const centerAliases = {
   partner: ["namorada", "amor", "ela"],
   shared: ["casal", "casa", "nos", "nós", "lar"],
-  moto: ["moto", "cg", "gasolina"],
+  moto: ["moto", "cg", "gasolina", "automovel", "automóvel", "veiculo", "veículo", "carro"],
   store: ["loja", "pedido", "filamento", "impressao", "impressão", "3d"],
 };
 

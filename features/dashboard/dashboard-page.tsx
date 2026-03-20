@@ -206,7 +206,7 @@ export function DashboardPage() {
                 <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
                   {formatCurrencyBRL(summary.consolidated.operationalExpense)}
                 </p>
-                <p className="mt-1 text-sm text-zinc-400">Moto e loja sem misturar no caixa</p>
+                <p className="mt-1 text-sm text-zinc-400">Automóvel e loja sem misturar no caixa</p>
               </div>
 
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">

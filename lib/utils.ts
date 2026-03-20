@@ -63,3 +63,21 @@ export function safeNumber(value: string | number | null | undefined) {
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
 }
+
+export function mergeSearchParams(
+  source: { toString(): string },
+  updates: Record<string, string | number | boolean | null | undefined>,
+) {
+  const params = new URLSearchParams(source.toString());
+
+  Object.entries(updates).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === "") {
+      params.delete(key);
+      return;
+    }
+
+    params.set(key, String(value));
+  });
+
+  return params.toString();
+}

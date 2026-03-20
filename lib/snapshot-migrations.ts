@@ -1,4 +1,4 @@
-import { appVersion, schemaVersion } from "@/lib/constants";
+import { appVersion, schemaVersion, vehiclePresetOptions } from "@/lib/constants";
 import { workspaceSnapshotSchema } from "@/lib/schemas";
 import { slugify } from "@/lib/utils";
 import type {
@@ -94,7 +94,7 @@ function makeCostCenter(
     },
     moto: {
       id: "center_moto",
-      name: "Moto",
+      name: "Automóvel",
       color: "#f59e0b",
       icon: "bike",
       active: true,
@@ -117,6 +117,115 @@ function makeCostCenter(
     createdAt: now,
     updatedAt: now,
     ...base,
+  };
+}
+
+function inferVehiclePreset(
+  brand: string,
+  model: string,
+  year: number,
+) {
+  const normalizedBrand = brand.toLowerCase();
+  const normalizedModel = model.toLowerCase();
+
+  return vehiclePresetOptions.find((preset) => {
+    if (!normalizedBrand.includes(preset.brand.toLowerCase())) {
+      return false;
+    }
+
+    if (!normalizedModel.includes(preset.model.toLowerCase().replace(/\s+/g, " "))) {
+      return false;
+    }
+
+    return preset.years.some((entry) => entry === year);
+  });
+}
+
+function normalizeVehicleFixedCostRule(
+  rawRule: unknown,
+  fallback?: {
+    enabled: boolean;
+    amount: number;
+    dueMonth: number;
+    dueDay: number;
+  },
+) {
+  const rule = isRecord(rawRule) ? rawRule : {};
+
+  return {
+    enabled:
+      typeof rule.enabled === "boolean"
+        ? rule.enabled
+        : fallback?.enabled ?? false,
+    amount:
+      typeof rule.amount === "number"
+        ? rule.amount
+        : fallback?.amount ?? 0,
+    dueMonth:
+      typeof rule.dueMonth === "number"
+        ? rule.dueMonth
+        : fallback?.dueMonth ?? 1,
+    dueDay:
+      typeof rule.dueDay === "number"
+        ? rule.dueDay
+        : fallback?.dueDay ?? 1,
+    notes: typeof rule.notes === "string" && rule.notes ? rule.notes : null,
+  };
+}
+
+function normalizeVehicle(rawVehicle: unknown, workspaceId: string, centerId: string, now: string) {
+  const vehicle = isRecord(rawVehicle) ? rawVehicle : {};
+  const brand = typeof vehicle.brand === "string" && vehicle.brand ? vehicle.brand : "Honda";
+  const model = typeof vehicle.model === "string" && vehicle.model ? vehicle.model : "CG 160";
+  const year = typeof vehicle.year === "number" ? vehicle.year : 2021;
+  const preset = inferVehiclePreset(brand, model, year);
+  const rawFixedCosts = isRecord(vehicle.fixedCosts) ? vehicle.fixedCosts : {};
+
+  return {
+    ...(vehicle as UnknownRecord),
+    id: typeof vehicle.id === "string" && vehicle.id ? vehicle.id : `vehicle_${slugify(`${brand}-${model}-${year}`)}`,
+    workspaceId,
+    centerId: typeof vehicle.centerId === "string" && vehicle.centerId ? vehicle.centerId : centerId,
+    vehicleType:
+      vehicle.vehicleType === "car" || vehicle.vehicleType === "motorcycle"
+        ? vehicle.vehicleType
+        : preset?.vehicleType ?? "motorcycle",
+    brand,
+    model,
+    year,
+    nickname:
+      typeof vehicle.nickname === "string" && vehicle.nickname
+        ? vehicle.nickname
+        : `${brand} ${model} ${year}`,
+    plate: typeof vehicle.plate === "string" && vehicle.plate ? vehicle.plate : null,
+    fuelType:
+      typeof vehicle.fuelType === "string" && vehicle.fuelType
+        ? vehicle.fuelType
+        : preset?.fuelType ?? "Flex",
+    currentOdometerKm:
+      typeof vehicle.currentOdometerKm === "number" ? vehicle.currentOdometerKm : 0,
+    averageCityKmPerLiter:
+      typeof vehicle.averageCityKmPerLiter === "number"
+        ? vehicle.averageCityKmPerLiter
+        : preset?.averageCityKmPerLiter ?? null,
+    averageHighwayKmPerLiter:
+      typeof vehicle.averageHighwayKmPerLiter === "number"
+        ? vehicle.averageHighwayKmPerLiter
+        : preset?.averageHighwayKmPerLiter ?? null,
+    tankCapacityLiters:
+      typeof vehicle.tankCapacityLiters === "number"
+        ? vehicle.tankCapacityLiters
+        : preset?.tankCapacityLiters ?? null,
+    monthlyDistanceGoalKm:
+      typeof vehicle.monthlyDistanceGoalKm === "number" ? vehicle.monthlyDistanceGoalKm : null,
+    fixedCosts: {
+      ipva: normalizeVehicleFixedCostRule(rawFixedCosts.ipva, preset?.fixedCosts?.ipva),
+      insurance: normalizeVehicleFixedCostRule(rawFixedCosts.insurance, preset?.fixedCosts?.insurance),
+      licensing: normalizeVehicleFixedCostRule(rawFixedCosts.licensing, preset?.fixedCosts?.licensing),
+    },
+    notes: typeof vehicle.notes === "string" && vehicle.notes ? vehicle.notes : null,
+    createdAt: typeof vehicle.createdAt === "string" ? vehicle.createdAt : now,
+    updatedAt: typeof vehicle.updatedAt === "string" ? vehicle.updatedAt : now,
   };
 }
 
@@ -385,15 +494,17 @@ function normalizeV2(raw: UnknownRecord): WorkspaceSnapshot {
       const existing = centers.find((center) => center.kind === kind);
 
       if (existing) {
-        return {
-          ...(existing as UnknownRecord),
+      return {
+        ...(existing as UnknownRecord),
           id:
             typeof existing.id === "string" && existing.id
               ? existing.id
               : makeCostCenter(workspaceId, kind, now).id,
           name:
             typeof existing.name === "string" && existing.name
-              ? existing.name
+              ? kind === "moto" && existing.name === "Moto"
+                ? "Automóvel"
+                : existing.name
               : makeCostCenter(workspaceId, kind, now).name,
           color:
             typeof existing.color === "string" && existing.color
@@ -453,7 +564,9 @@ function normalizeV2(raw: UnknownRecord): WorkspaceSnapshot {
       originRefId: typeof income.originRefId === "string" ? income.originRefId : null,
       lockedByOrigin: Boolean(income.lockedByOrigin),
     })),
-    vehicles: asArray(raw.vehicles),
+    vehicles: asArray(raw.vehicles).map((vehicle) =>
+      normalizeVehicle(vehicle, workspaceId, costCenters.find((center) => center.kind === "moto")?.id ?? "center_moto", now),
+    ),
     fuelLogs: asArray(raw.fuelLogs),
     maintenanceLogs: asArray(raw.maintenanceLogs),
     operationalSettings: {

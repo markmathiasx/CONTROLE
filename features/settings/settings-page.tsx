@@ -2,11 +2,16 @@
 
 import * as React from "react";
 import {
+  Bike,
+  CarFront,
   Download,
+  Fuel,
   HardDriveDownload,
   MonitorSmartphone,
+  Plus,
   RotateCcw,
   Save,
+  Trash2,
   Upload,
   Users,
   UserRound,
@@ -22,16 +27,102 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { themeLabels } from "@/lib/constants";
+import {
+  themeLabels,
+  vehicleFixedCostLabels,
+  vehiclePresetOptions,
+  vehicleTypeLabels,
+} from "@/lib/constants";
+import { formatCurrencyBRL } from "@/lib/formatters";
 import { useAuthStore } from "@/store/use-auth-store";
 import { useFinanceStore } from "@/store/use-finance-store";
-import type { SettingsFormValues } from "@/types/forms";
+import type { SettingsFormValues, VehicleFormValues } from "@/types/forms";
 import { getWorkspaceKindLabel } from "@/utils/workspaces";
 
 const memberRoleLabels = {
   owner: "Dono",
   member: "Membro",
 } as const;
+
+function toVehicleFormState(vehicle?: {
+  id?: string;
+  vehicleType?: "car" | "motorcycle";
+  brand?: string;
+  model?: string;
+  year?: number;
+  nickname?: string;
+  plate?: string | null;
+  fuelType?: string;
+  currentOdometerKm?: number;
+  averageCityKmPerLiter?: number | null;
+  averageHighwayKmPerLiter?: number | null;
+  tankCapacityLiters?: number | null;
+  monthlyDistanceGoalKm?: number | null;
+  fixedCosts?: {
+    ipva?: {
+      enabled?: boolean;
+      amount?: number;
+      dueMonth?: number;
+      dueDay?: number;
+      notes?: string | null;
+    } | null;
+    insurance?: {
+      enabled?: boolean;
+      amount?: number;
+      dueMonth?: number;
+      dueDay?: number;
+      notes?: string | null;
+    } | null;
+    licensing?: {
+      enabled?: boolean;
+      amount?: number;
+      dueMonth?: number;
+      dueDay?: number;
+      notes?: string | null;
+    } | null;
+  } | null;
+  notes?: string | null;
+}): VehicleFormValues {
+  return {
+    id: vehicle?.id,
+    vehicleType: vehicle?.vehicleType ?? "motorcycle",
+    brand: vehicle?.brand ?? "",
+    model: vehicle?.model ?? "",
+    year: vehicle?.year ?? new Date().getFullYear(),
+    nickname: vehicle?.nickname ?? "",
+    plate: vehicle?.plate ?? "",
+    fuelType: vehicle?.fuelType ?? "Flex",
+    currentOdometerKm: vehicle?.currentOdometerKm ?? 0,
+    averageCityKmPerLiter: vehicle?.averageCityKmPerLiter ?? undefined,
+    averageHighwayKmPerLiter: vehicle?.averageHighwayKmPerLiter ?? undefined,
+    tankCapacityLiters: vehicle?.tankCapacityLiters ?? undefined,
+    monthlyDistanceGoalKm: vehicle?.monthlyDistanceGoalKm ?? undefined,
+    fixedCosts: {
+      ipva: {
+        enabled: vehicle?.fixedCosts?.ipva?.enabled ?? false,
+        amount: vehicle?.fixedCosts?.ipva?.amount ?? 0,
+        dueMonth: vehicle?.fixedCosts?.ipva?.dueMonth ?? 1,
+        dueDay: vehicle?.fixedCosts?.ipva?.dueDay ?? 25,
+        notes: vehicle?.fixedCosts?.ipva?.notes ?? "",
+      },
+      insurance: {
+        enabled: vehicle?.fixedCosts?.insurance?.enabled ?? false,
+        amount: vehicle?.fixedCosts?.insurance?.amount ?? 0,
+        dueMonth: vehicle?.fixedCosts?.insurance?.dueMonth ?? 6,
+        dueDay: vehicle?.fixedCosts?.insurance?.dueDay ?? 10,
+        notes: vehicle?.fixedCosts?.insurance?.notes ?? "",
+      },
+      licensing: {
+        enabled: vehicle?.fixedCosts?.licensing?.enabled ?? false,
+        amount: vehicle?.fixedCosts?.licensing?.amount ?? 0,
+        dueMonth: vehicle?.fixedCosts?.licensing?.dueMonth ?? 9,
+        dueDay: vehicle?.fixedCosts?.licensing?.dueDay ?? 15,
+        notes: vehicle?.fixedCosts?.licensing?.notes ?? "",
+      },
+    },
+    notes: vehicle?.notes ?? "",
+  };
+}
 
 export function SettingsPage() {
   const snapshot = useFinanceStore((state) => state.snapshot);
@@ -41,6 +132,8 @@ export function SettingsPage() {
   const toggleProfileActive = useFinanceStore((state) => state.toggleProfileActive);
   const importSnapshot = useFinanceStore((state) => state.importSnapshot);
   const resetWorkspace = useFinanceStore((state) => state.resetWorkspace);
+  const saveVehicle = useFinanceStore((state) => state.saveVehicle);
+  const deleteVehicle = useFinanceStore((state) => state.deleteVehicle);
 
   const authStatus = useAuthStore((state) => state.status);
   const profile = useAuthStore((state) => state.profile);
@@ -73,6 +166,9 @@ export function SettingsPage() {
   const [workspaceName, setWorkspaceName] = React.useState("");
   const [newWorkspaceName, setNewWorkspaceName] = React.useState("");
   const [newWorkspaceKind, setNewWorkspaceKind] = React.useState<"shared" | "personal">("shared");
+  const [selectedVehicleId, setSelectedVehicleId] = React.useState("");
+  const [vehiclePresetId, setVehiclePresetId] = React.useState("custom");
+  const [vehicleForm, setVehicleForm] = React.useState<VehicleFormValues>(() => toVehicleFormState());
   const [busyAction, setBusyAction] = React.useState<string | null>(null);
 
   const activeWorkspace = React.useMemo(
@@ -113,6 +209,35 @@ export function SettingsPage() {
     [memberships],
   );
 
+  const selectedVehicle = React.useMemo(
+    () =>
+      snapshot?.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ??
+      snapshot?.vehicles[0] ??
+      null,
+    [selectedVehicleId, snapshot],
+  );
+
+  React.useEffect(() => {
+    if (!snapshot?.vehicles.length) {
+      return;
+    }
+
+    const resolvedVehicle =
+      snapshot.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? snapshot.vehicles[0];
+
+    if (selectedVehicleId !== resolvedVehicle.id) {
+      setSelectedVehicleId(resolvedVehicle.id);
+    }
+
+    setVehicleForm((current) => {
+      if (current.id === resolvedVehicle.id) {
+        return current;
+      }
+
+      return toVehicleFormState(resolvedVehicle);
+    });
+  }, [selectedVehicleId, snapshot]);
+
   if (!initialized || !snapshot) {
     return <PageSkeleton cards={3} rows={4} />;
   }
@@ -120,6 +245,120 @@ export function SettingsPage() {
   const activeCenters = snapshot.costCenters.filter((center) => center.active).length;
   const cloudWorkspaceCount = workspaces.length;
   const canShareLater = runtimeConfig.storageMode === "supabase" && cloudWorkspaceCount > 0;
+  const annualFixedVehicleCost = Object.values(vehicleForm.fixedCosts).reduce(
+    (sum, rule) => sum + (rule.enabled ? rule.amount : 0),
+    0,
+  );
+
+  function startNewVehicle(presetId?: string) {
+    const preset = vehiclePresetOptions.find((item) => item.id === presetId);
+    const currentYear = new Date().getFullYear();
+    const suggestedYear = preset
+      ? preset.years.some((year) => year === currentYear)
+        ? currentYear
+        : preset.years[preset.years.length - 1] ?? currentYear
+      : currentYear;
+
+    setSelectedVehicleId("");
+    setVehiclePresetId(preset?.id ?? "custom");
+    setVehicleForm({
+      id: undefined,
+      vehicleType: preset?.vehicleType ?? "motorcycle",
+      brand: preset?.brand ?? "",
+      model: preset?.model ?? "",
+      year: suggestedYear,
+      nickname: preset ? `${preset.brand} ${preset.model}` : "",
+      plate: "",
+      fuelType: preset?.fuelType ?? "Flex",
+      currentOdometerKm: 0,
+      averageCityKmPerLiter: preset?.averageCityKmPerLiter,
+      averageHighwayKmPerLiter: preset?.averageHighwayKmPerLiter,
+      tankCapacityLiters: preset?.tankCapacityLiters,
+      monthlyDistanceGoalKm: undefined,
+      fixedCosts: {
+        ipva: {
+          enabled: preset?.fixedCosts?.ipva?.enabled ?? false,
+          amount: preset?.fixedCosts?.ipva?.amount ?? 0,
+          dueMonth: preset?.fixedCosts?.ipva?.dueMonth ?? 1,
+          dueDay: preset?.fixedCosts?.ipva?.dueDay ?? 25,
+          notes: "",
+        },
+        insurance: {
+          enabled: preset?.fixedCosts?.insurance?.enabled ?? false,
+          amount: preset?.fixedCosts?.insurance?.amount ?? 0,
+          dueMonth: preset?.fixedCosts?.insurance?.dueMonth ?? 6,
+          dueDay: preset?.fixedCosts?.insurance?.dueDay ?? 10,
+          notes: "",
+        },
+        licensing: {
+          enabled: preset?.fixedCosts?.licensing?.enabled ?? false,
+          amount: preset?.fixedCosts?.licensing?.amount ?? 0,
+          dueMonth: preset?.fixedCosts?.licensing?.dueMonth ?? 9,
+          dueDay: preset?.fixedCosts?.licensing?.dueDay ?? 15,
+          notes: "",
+        },
+      },
+      notes: "",
+    });
+  }
+
+  function saveVehicleForm() {
+    if (!vehicleForm.brand.trim() || !vehicleForm.model.trim() || !vehicleForm.nickname.trim()) {
+      toast.error("Preencha marca, modelo e apelido do veículo.");
+      return;
+    }
+
+    if (!vehicleForm.year || vehicleForm.year < 1980) {
+      toast.error("Informe um ano válido.");
+      return;
+    }
+
+    const nextId = vehicleForm.id ?? `vehicle_${crypto.randomUUID()}`;
+    const payload = {
+      ...vehicleForm,
+      id: nextId,
+      brand: vehicleForm.brand.trim(),
+      model: vehicleForm.model.trim(),
+      nickname: vehicleForm.nickname.trim(),
+      plate: vehicleForm.plate?.trim() ?? "",
+      fuelType: vehicleForm.fuelType.trim(),
+      fixedCosts: {
+        ipva: {
+          ...vehicleForm.fixedCosts.ipva,
+          notes: vehicleForm.fixedCosts.ipva.notes?.trim() ?? "",
+        },
+        insurance: {
+          ...vehicleForm.fixedCosts.insurance,
+          notes: vehicleForm.fixedCosts.insurance.notes?.trim() ?? "",
+        },
+        licensing: {
+          ...vehicleForm.fixedCosts.licensing,
+          notes: vehicleForm.fixedCosts.licensing.notes?.trim() ?? "",
+        },
+      },
+      notes: vehicleForm.notes?.trim() ?? "",
+    };
+
+    saveVehicle(payload);
+    setSelectedVehicleId(nextId);
+    setVehicleForm(payload);
+    setVehiclePresetId("custom");
+    toast.success(vehicleForm.id ? "Veículo atualizado." : "Veículo cadastrado.");
+  }
+
+  function removeSelectedVehicle() {
+    if (!selectedVehicle?.id) {
+      return;
+    }
+
+    try {
+      deleteVehicle(selectedVehicle.id);
+      toast.success("Veículo removido.");
+      setVehiclePresetId("custom");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível remover o veículo.");
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -725,6 +964,463 @@ export function SettingsPage() {
               />
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Veículos e metas de uso</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 xl:grid-cols-[0.8fr_1.2fr]">
+            <div className="space-y-3">
+              {snapshot.vehicles.map((vehicle) => {
+                const isActive = selectedVehicle?.id === vehicle.id;
+                const VehicleIcon = vehicle.vehicleType === "car" ? CarFront : Bike;
+
+                return (
+                  <button
+                    type="button"
+                    key={vehicle.id}
+                    className={`w-full rounded-2xl border p-4 text-left transition ${
+                      isActive
+                        ? "border-emerald-400/40 bg-emerald-500/10"
+                        : "border-white/8 bg-white/6 hover:border-white/16 hover:bg-white/8"
+                    }`}
+                    onClick={() => {
+                      setSelectedVehicleId(vehicle.id);
+                      setVehicleForm(toVehicleFormState(vehicle));
+                      setVehiclePresetId("custom");
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <VehicleIcon className="size-4 text-emerald-300" />
+                          <p className="font-medium text-zinc-50">{vehicle.nickname}</p>
+                        </div>
+                        <p className="text-sm text-zinc-400">
+                          {vehicle.brand} {vehicle.model} {vehicle.year}
+                        </p>
+                      </div>
+                      <Badge variant={isActive ? "default" : "muted"}>
+                        {vehicleTypeLabels[vehicle.vehicleType ?? "motorcycle"]}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Odômetro</p>
+                        <p className="mt-1 font-medium text-zinc-100">{vehicle.currentOdometerKm} km</p>
+                      </div>
+                      <div className="rounded-2xl border border-white/8 bg-black/20 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Cidade</p>
+                        <p className="mt-1 font-medium text-zinc-100">
+                          {vehicle.averageCityKmPerLiter ? `${vehicle.averageCityKmPerLiter} km/L` : "Sem média"}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+
+              <div className="rounded-2xl border border-dashed border-white/12 bg-white/4 p-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vehicle-preset">Modelo sugerido</Label>
+                  <Select
+                    value={vehiclePresetId}
+                    onValueChange={(value) => {
+                      setVehiclePresetId(value);
+                      if (value === "custom") {
+                        startNewVehicle();
+                        return;
+                      }
+                      startNewVehicle(value);
+                    }}
+                  >
+                    <SelectTrigger id="vehicle-preset">
+                      <SelectValue placeholder="Escolha um preset útil" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Manual</SelectItem>
+                      {vehiclePresetOptions.map((preset) => (
+                        <SelectItem key={preset.id} value={preset.id}>
+                          {preset.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="button" variant="secondary" className="mt-3 w-full rounded-2xl" onClick={() => startNewVehicle(vehiclePresetId === "custom" ? undefined : vehiclePresetId)}>
+                  <Plus className="size-4" />
+                  Novo veículo
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Tipo</Label>
+                  <Select
+                    value={vehicleForm.vehicleType}
+                    onValueChange={(value) =>
+                      setVehicleForm((current) => ({
+                        ...current,
+                        vehicleType: value as VehicleFormValues["vehicleType"],
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(vehicleTypeLabels).map(([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Apelido</Label>
+                  <Input
+                    value={vehicleForm.nickname}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({ ...current, nickname: event.target.value }))
+                    }
+                    placeholder="Ex.: Prisma da casa"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Marca</Label>
+                  <Input
+                    value={vehicleForm.brand}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({ ...current, brand: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Modelo</Label>
+                  <Input
+                    value={vehicleForm.model}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({ ...current, model: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ano</Label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={vehicleForm.year}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({ ...current, year: Number(event.target.value) }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Placa</Label>
+                  <Input
+                    value={vehicleForm.plate ?? ""}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({ ...current, plate: event.target.value }))
+                    }
+                    placeholder="Opcional"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Combustível</Label>
+                  <Input
+                    value={vehicleForm.fuelType}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({ ...current, fuelType: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Odômetro atual</Label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={vehicleForm.currentOdometerKm}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({
+                        ...current,
+                        currentOdometerKm: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Consumo médio cidade (km/L)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    value={vehicleForm.averageCityKmPerLiter ?? ""}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({
+                        ...current,
+                        averageCityKmPerLiter: event.target.value ? Number(event.target.value) : undefined,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Consumo médio estrada (km/L)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    value={vehicleForm.averageHighwayKmPerLiter ?? ""}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({
+                        ...current,
+                        averageHighwayKmPerLiter: event.target.value ? Number(event.target.value) : undefined,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Tanque (L)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.1"
+                    value={vehicleForm.tankCapacityLiters ?? ""}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({
+                        ...current,
+                        tankCapacityLiters: event.target.value ? Number(event.target.value) : undefined,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Meta mensal (km)</Label>
+                  <Input
+                    type="number"
+                    inputMode="numeric"
+                    value={vehicleForm.monthlyDistanceGoalKm ?? ""}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({
+                        ...current,
+                        monthlyDistanceGoalKm: event.target.value ? Number(event.target.value) : undefined,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Observações</Label>
+                  <Input
+                    value={vehicleForm.notes ?? ""}
+                    onChange={(event) =>
+                      setVehicleForm((current) => ({ ...current, notes: event.target.value }))
+                    }
+                    placeholder="Uso principal, consumo real, particularidades..."
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    {vehicleForm.vehicleType === "car" ? (
+                      <CarFront className="size-4 text-cyan-300" />
+                    ) : (
+                      <Bike className="size-4 text-cyan-300" />
+                    )}
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Tipo</p>
+                  </div>
+                  <p className="mt-2 font-medium text-zinc-100">
+                    {vehicleTypeLabels[vehicleForm.vehicleType]}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <Fuel className="size-4 text-amber-300" />
+                    <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Faixa de consumo</p>
+                  </div>
+                  <p className="mt-2 font-medium text-zinc-100">
+                    {vehicleForm.averageCityKmPerLiter
+                      ? `${vehicleForm.averageCityKmPerLiter} km/L`
+                      : "Cidade não definida"}
+                    {vehicleForm.averageHighwayKmPerLiter
+                      ? ` • ${vehicleForm.averageHighwayKmPerLiter} km/L`
+                      : ""}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Meta mensal</p>
+                  <p className="mt-2 font-medium text-zinc-100">
+                    {vehicleForm.monthlyDistanceGoalKm ? `${vehicleForm.monthlyDistanceGoalKm} km` : "Sem meta"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4 rounded-[28px] border border-white/10 bg-white/6 p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium text-zinc-50">Custos fixos anuais do veículo</p>
+                    <p className="text-sm text-zinc-400">
+                      IPVA, seguro e licenciamento entram na agenda automática dos relatórios e alertas.
+                    </p>
+                  </div>
+                  <Badge variant="muted">{formatCurrencyBRL(annualFixedVehicleCost)}/ano</Badge>
+                </div>
+
+                <div className="grid gap-4 xl:grid-cols-3">
+                  {(["ipva", "insurance", "licensing"] as const).map((costKind) => {
+                    const rule = vehicleForm.fixedCosts[costKind];
+
+                    return (
+                      <div
+                        key={costKind}
+                        className="space-y-3 rounded-2xl border border-white/8 bg-black/20 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-zinc-100">
+                              {vehicleFixedCostLabels[costKind]}
+                            </p>
+                            <p className="text-xs text-zinc-500">
+                              Agenda anual com valor editável
+                            </p>
+                          </div>
+                          <Switch
+                            checked={rule.enabled}
+                            onCheckedChange={(checked) =>
+                              setVehicleForm((current) => ({
+                                ...current,
+                                fixedCosts: {
+                                  ...current.fixedCosts,
+                                  [costKind]: {
+                                    ...current.fixedCosts[costKind],
+                                    enabled: checked,
+                                  },
+                                },
+                              }))
+                            }
+                          />
+                        </div>
+
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Valor anual</Label>
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              step="0.01"
+                              value={rule.amount}
+                              onChange={(event) =>
+                                setVehicleForm((current) => ({
+                                  ...current,
+                                  fixedCosts: {
+                                    ...current.fixedCosts,
+                                    [costKind]: {
+                                      ...current.fixedCosts[costKind],
+                                      amount: Number(event.target.value),
+                                    },
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Mês</Label>
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min={1}
+                              max={12}
+                              value={rule.dueMonth}
+                              onChange={(event) =>
+                                setVehicleForm((current) => ({
+                                  ...current,
+                                  fixedCosts: {
+                                    ...current.fixedCosts,
+                                    [costKind]: {
+                                      ...current.fixedCosts[costKind],
+                                      dueMonth: Number(event.target.value),
+                                    },
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Dia</Label>
+                            <Input
+                              type="number"
+                              inputMode="numeric"
+                              min={1}
+                              max={31}
+                              value={rule.dueDay}
+                              onChange={(event) =>
+                                setVehicleForm((current) => ({
+                                  ...current,
+                                  fixedCosts: {
+                                    ...current.fixedCosts,
+                                    [costKind]: {
+                                      ...current.fixedCosts[costKind],
+                                      dueDay: Number(event.target.value),
+                                    },
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                          <div className="space-y-2 md:col-span-2">
+                            <Label>Observação opcional</Label>
+                            <Input
+                              value={rule.notes ?? ""}
+                              placeholder="Ex.: parcela única, renovação, órgão..."
+                              onChange={(event) =>
+                                setVehicleForm((current) => ({
+                                  ...current,
+                                  fixedCosts: {
+                                    ...current.fixedCosts,
+                                    [costKind]: {
+                                      ...current.fixedCosts[costKind],
+                                      notes: event.target.value,
+                                    },
+                                  },
+                                }))
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button type="button" className="rounded-2xl sm:flex-1" onClick={saveVehicleForm}>
+                  <Save className="size-4" />
+                  {vehicleForm.id ? "Salvar veículo" : "Cadastrar veículo"}
+                </Button>
+                <Button type="button" variant="secondary" className="rounded-2xl sm:flex-1" onClick={() => startNewVehicle()}>
+                  <Plus className="size-4" />
+                  Limpar formulário
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="rounded-2xl text-rose-300 hover:bg-rose-500/10 hover:text-rose-200 sm:flex-1"
+                  onClick={removeSelectedVehicle}
+                  disabled={!selectedVehicle?.id}
+                >
+                  <Trash2 className="size-4" />
+                  Excluir selecionado
+                </Button>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

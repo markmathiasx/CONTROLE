@@ -24,12 +24,13 @@ export function AppShell({
   const isAuthRoute = ["/unlock", "/login", "/cadastro", "/logout"].some((route) =>
     pathname.startsWith(route),
   );
+  const isPrintRoute = pathname.startsWith("/relatorios/imprimir");
   const shouldRenderPublicShellLess =
     runtimeConfig.hasSupabase &&
     (isAuthRoute || pathname === "/") &&
     (!authInitialized || authStatus !== "authenticated");
 
-  if (isAuthRoute || shouldRenderPublicShellLess) {
+  if (isAuthRoute || isPrintRoute || shouldRenderPublicShellLess) {
     return <>{children}</>;
   }
 

@@ -1,6 +1,9 @@
 "use client";
 
+import * as React from "react";
+import type { Route } from "next";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
@@ -34,12 +37,14 @@ import { SummaryCard } from "@/components/shared/summary-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   formatCompactCurrencyBRL,
   formatCurrencyBRL,
   formatDateBR,
   formatMonthShortLabel,
 } from "@/lib/formatters";
+import { mergeSearchParams } from "@/lib/utils";
 import { useFinanceStore } from "@/store/use-finance-store";
 import {
   getConsolidatedMonthlyTrend,
@@ -57,18 +62,83 @@ function moduleTone(value: number, inverse = false) {
 }
 
 export function HubPage() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const snapshot = useFinanceStore((state) => state.snapshot);
   const initialized = useFinanceStore((state) => state.initialized);
   const selectedMonth = useFinanceStore((state) => state.selectedMonth);
   const setSelectedMonth = useFinanceStore((state) => state.setSelectedMonth);
+  const [selectedVehicleId, setSelectedVehicleId] = React.useState(
+    () => searchParams.get("vehicle") ?? "all",
+  );
 
-  if (!initialized || !snapshot) {
+  const updateQuery = React.useCallback(
+    (updates: Record<string, string | null | undefined>) => {
+      const query = mergeSearchParams(searchParams, updates);
+      router.replace((query ? `${pathname}?${query}` : pathname) as Route, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
+
+  React.useEffect(() => {
+    const urlVehicle = searchParams.get("vehicle") ?? "all";
+    if (urlVehicle !== selectedVehicleId) {
+      setSelectedVehicleId(urlVehicle);
+    }
+  }, [searchParams, selectedVehicleId]);
+
+  React.useEffect(() => {
+    if (!snapshot?.vehicles.length) {
+      return;
+    }
+
+    if (
+      selectedVehicleId !== "all" &&
+      !snapshot.vehicles.some((vehicle) => vehicle.id === selectedVehicleId)
+    ) {
+      setSelectedVehicleId("all");
+      updateQuery({ vehicle: null });
+    }
+  }, [selectedVehicleId, snapshot, updateQuery]);
+
+  const selectedVehicle =
+    snapshot && selectedVehicleId === "all"
+      ? null
+      : snapshot?.vehicles.find((vehicle) => vehicle.id === selectedVehicleId) ?? null;
+  const executive = React.useMemo(
+    () => (snapshot ? getHubExecutiveSummary(snapshot, selectedMonth, selectedVehicle?.id ?? "all") : null),
+    [selectedMonth, selectedVehicle?.id, snapshot],
+  );
+  const consolidatedTrend = React.useMemo(() => (snapshot ? getConsolidatedMonthlyTrend(snapshot, 6) : []), [snapshot]);
+  const storeTrend = React.useMemo(() => (snapshot ? getStoreMonthlyTrend(snapshot, 6) : []), [snapshot]);
+  const motoModuleHref = React.useMemo(() => {
+    const query = mergeSearchParams(new URLSearchParams(), {
+      vehicle: selectedVehicle?.id ?? null,
+    });
+    return (query ? `/moto?${query}` : "/moto") as Route;
+  }, [selectedVehicle?.id]);
+  const transactionsHref = React.useMemo(() => {
+    const query = mergeSearchParams(new URLSearchParams(), {
+      module: "moto",
+      vehicle: selectedVehicle?.id ?? null,
+      linked: "linked",
+    });
+    return `/transacoes?${query}` as Route;
+  }, [selectedVehicle?.id]);
+  const reportsHref = React.useMemo(() => {
+    const query = mergeSearchParams(new URLSearchParams(), {
+      tab: "consolidado",
+      vehicle: selectedVehicle?.id ?? null,
+      period: "month",
+      style: "operational",
+    });
+    return `/relatorios?${query}` as Route;
+  }, [selectedVehicle?.id]);
+
+  if (!initialized || !snapshot || !executive) {
     return <PageSkeleton cards={6} rows={3} />;
   }
-
-  const executive = getHubExecutiveSummary(snapshot, selectedMonth);
-  const consolidatedTrend = getConsolidatedMonthlyTrend(snapshot, 6);
-  const storeTrend = getStoreMonthlyTrend(snapshot, 6);
 
   return (
     <div className="space-y-6">
@@ -88,12 +158,35 @@ export function HubPage() {
               O que mais importa está visível em segundos.
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-zinc-400 sm:text-base">
-              Use este painel como centro de comando: saldo, pressão do cartão, custo da moto, lucro
+              Use este painel como centro de comando: saldo, pressão do cartão, custo do automóvel, lucro
               da loja, alertas e atalhos para agir rápido no celular ou no desktop.
             </p>
           </div>
         </div>
-        <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
+        <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
+          <div className="min-w-[220px]">
+            <Select
+              value={selectedVehicle?.id ?? "all"}
+              onValueChange={(value) => {
+                setSelectedVehicleId(value);
+                updateQuery({ vehicle: value === "all" ? null : value });
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Escopo do automóvel" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os veículos</SelectItem>
+                {snapshot.vehicles.map((vehicle) => (
+                  <SelectItem key={vehicle.id} value={vehicle.id}>
+                    {vehicle.nickname}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -109,11 +202,11 @@ export function HubPage() {
         />
         <SummaryCard
           icon={Bike}
-          label="Moto no mês"
+          label="Automóvel no mês"
           value={formatCurrencyBRL(executive.moto.monthlyCost)}
-          detail={`${executive.moto.fuelLiters} L • ${executive.moto.reminders.length} cuidado(s)`}
+          detail={`${executive.moto.scopeLabel} • ${executive.moto.fuelLiters} L • ${executive.moto.reminders.length} cuidado(s)`}
           accent="from-amber-400/20 via-amber-500/10 to-transparent"
-          badge={{ text: "Moto", tone: moduleTone(executive.comparisons.motoCost.delta, true) }}
+          badge={{ text: "Automóvel", tone: moduleTone(executive.comparisons.motoCost.delta, true) }}
         />
         <SummaryCard
           icon={Printer}
@@ -242,10 +335,10 @@ export function HubPage() {
           description="Saldo, cartão, parcelas, orçamentos e visão do mês."
         />
         <QuickLinkCard
-          href="/moto/abastecimentos"
+          href={transactionsHref}
           icon={Bike}
-          title="Registrar abastecimento"
-          description="Anote rápido litros, posto, preço e odômetro."
+          title="Filtrar lançamentos do automóvel"
+          description="Abra o feed já travado no contexto do veículo selecionado."
           accent="from-amber-400/20 via-amber-500/10 to-transparent"
         />
         <QuickLinkCard
@@ -256,10 +349,10 @@ export function HubPage() {
           accent="from-cyan-400/20 via-cyan-500/10 to-transparent"
         />
         <QuickLinkCard
-          href="/relatorios"
+          href={reportsHref}
           icon={Boxes}
           title="Abrir relatórios"
-          description="Comparativos, gráficos e consolidados para decidir melhor."
+          description="Ir direto para o fechamento consolidado no escopo atual."
           accent="from-violet-400/20 via-violet-500/10 to-transparent"
         />
       </div>
@@ -308,7 +401,7 @@ export function HubPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Moto</CardTitle>
+            <CardTitle>Automóvel</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -326,20 +419,30 @@ export function HubPage() {
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Litros</p>
-                <p className="mt-2 font-semibold text-zinc-50">{executive.moto.fuelLiters} L</p>
+                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Escopo</p>
+                <p className="mt-2 font-semibold text-zinc-50">{executive.moto.scopeLabel}</p>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Cuidados</p>
-                <p className="mt-2 font-semibold text-zinc-50">{executive.moto.reminders.length}</p>
+                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Reserva/mês</p>
+                <p className="mt-2 font-semibold text-zinc-50">
+                  {formatCurrencyBRL(executive.moto.monthlyReserveTarget)}
+                </p>
               </div>
             </div>
             <Button asChild className="w-full justify-between rounded-2xl">
-              <Link href="/moto">
-                Abrir módulo da moto
+              <Link href={motoModuleHref}>
+                Abrir módulo do automóvel
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
+            {executive.moto.fixedCostCoverageWarnings.length ? (
+              <div className="rounded-2xl border border-amber-400/20 bg-amber-500/8 px-4 py-3">
+                <p className="text-xs uppercase tracking-[0.22em] text-amber-200">Cobertura fixa</p>
+                <p className="mt-2 text-sm text-amber-50">
+                  {executive.moto.fixedCostCoverageWarnings[0]?.message}
+                </p>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 

@@ -36,7 +36,9 @@ export function TransactionList({
 
   const entries = (providedEntries ?? listUnifiedEntries(snapshot, monthKey)).filter((entry) =>
     search
-      ? `${entry.description} ${entry.date}`.toLowerCase().includes(search.toLowerCase())
+      ? `${entry.description} ${entry.date} ${entry.vehicleName ?? ""}`
+          .toLowerCase()
+          .includes(search.toLowerCase())
       : true,
   );
 
@@ -98,6 +100,7 @@ export function TransactionList({
                           ) : (
                             <Badge>{entry.incomeType ?? "Entrada"}</Badge>
                           )}
+                          {entry.vehicleName ? <Badge variant="muted">{entry.vehicleName}</Badge> : null}
                           {locked ? <Badge variant="muted">Vinculado</Badge> : null}
                         </div>
                       </div>

@@ -7,12 +7,19 @@ import {
   compareDesc,
   differenceInCalendarDays,
   endOfMonth,
+  endOfWeek,
+  endOfYear,
   format,
+  getDate,
+  getYear,
   isAfter,
   isBefore,
   isEqual,
+  isWithinInterval,
   parseISO,
   startOfMonth,
+  startOfWeek,
+  startOfYear,
 } from "date-fns";
 
 import { maintenanceCategoryLabels, paymentMethodLabels } from "@/lib/constants";
@@ -41,6 +48,9 @@ export interface UnifiedEntry {
   paymentMethod?: PaymentMethod | null;
   incomeType?: Income["incomeType"];
   originModule?: "finance" | "moto" | "store";
+  originRefId?: string | null;
+  vehicleId?: string | null;
+  vehicleName?: string | null;
 }
 
 export interface MaterializedOccurrence {
@@ -90,6 +100,101 @@ export interface DeltaMetric {
   delta: number;
   deltaPercent: number;
   trend: "up" | "down" | "flat";
+}
+
+export type VehicleScopeValue = string | "all";
+export type ReportPeriod = "day" | "week" | "month" | "year";
+export type PrintableReportStyle = "neutral" | "economy" | "operational";
+
+export interface VehicleFixedCostAgendaItem {
+  id: string;
+  vehicleId: string;
+  vehicleName: string;
+  kind: "ipva" | "insurance" | "licensing" | "maintenance";
+  title: string;
+  amount: number;
+  dueDate?: string | null;
+  dueKm?: number | null;
+  isOverdue: boolean;
+}
+
+export interface VehiclePerformanceEntry {
+  vehicleId: string;
+  vehicleName: string;
+  vehicleType: string;
+  monthlyCost: number;
+  fuelCost: number;
+  maintenanceCost: number;
+  annualFixedCost: number;
+  liters: number;
+  distanceKm: number;
+  kmPerLiter: number;
+  costPerKm: number;
+  reminders: number;
+}
+
+export interface PrintableSpendingReport {
+  style: PrintableReportStyle;
+  headline: string;
+  period: ReportPeriod;
+  periodLabel: string;
+  anchorDate: string;
+  startDate: string;
+  endDate: string;
+  totalIncome: number;
+  totalExpense: number;
+  net: number;
+  topCategories: Array<{ label: string; total: number; share: number }>;
+  topCenters: Array<{ label: string; total: number }>;
+  paymentMethods: Array<{ label: string; total: number }>;
+  biggestExpense: { description: string; amount: number; date: string } | null;
+  recommendations: string[];
+  automovel: {
+    scopeLabel: string;
+    totalCost: number;
+    fuelCost: number;
+    maintenanceCost: number;
+    fixedCostTotal: number;
+    monthlyReserveTarget: number;
+    coverageWarnings: string[];
+    upcomingItems: VehicleFixedCostAgendaItem[];
+  };
+}
+
+function buildPrintableReportHeadline(
+  style: PrintableReportStyle,
+  params: {
+    net: number;
+    totalExpense: number;
+    topCategory?: { label: string; total: number; share: number };
+    automovelTotal: number;
+  },
+) {
+  if (style === "economy") {
+    if (params.net < 0) {
+      return "O período fechou pressionado. O maior ganho tende a vir do corte na categoria líder.";
+    }
+
+    if (params.topCategory) {
+      return `${params.topCategory.label} é o maior foco de economia deste fechamento.`;
+    }
+
+    return "Fechamento enxuto. O próximo ganho vem de cortar gastos recorrentes menos visíveis.";
+  }
+
+  if (style === "operational") {
+    if (params.automovelTotal > 0 && params.automovelTotal >= params.totalExpense * 0.2) {
+      return "A operação do automóvel puxou uma fatia relevante do período e merece gestão ativa.";
+    }
+
+    return "Este fechamento prioriza leitura operacional para agir rápido no próximo ciclo.";
+  }
+
+  if (params.net < 0) {
+    return "Fechamento do período com saldo negativo e pontos claros de ajuste.";
+  }
+
+  return "Fechamento do período com leitura clara do que mais pesou no caixa.";
 }
 
 function sortByDateDesc(a: { date: string }, b: { date: string }) {
@@ -229,6 +334,36 @@ function getMaterializedOccurrencesForWindow(
 }
 
 export function listUnifiedEntries(snapshot: WorkspaceSnapshot, monthKey?: string) {
+  const fuelById = new Map(snapshot.fuelLogs.map((item) => [item.id, item] as const));
+  const maintenanceById = new Map(snapshot.maintenanceLogs.map((item) => [item.id, item] as const));
+  const vehiclesById = new Map(snapshot.vehicles.map((item) => [item.id, item] as const));
+
+  function resolveVehicleContext(originModule: UnifiedEntry["originModule"], originRefId?: string | null) {
+    if (originModule !== "moto" || !originRefId) {
+      return { vehicleId: null, vehicleName: null };
+    }
+
+    const fuelLog = fuelById.get(originRefId);
+    if (fuelLog) {
+      const vehicle = vehiclesById.get(fuelLog.vehicleId);
+      return {
+        vehicleId: fuelLog.vehicleId,
+        vehicleName: vehicle?.nickname ?? null,
+      };
+    }
+
+    const maintenanceLog = maintenanceById.get(originRefId);
+    if (maintenanceLog) {
+      const vehicle = vehiclesById.get(maintenanceLog.vehicleId);
+      return {
+        vehicleId: maintenanceLog.vehicleId,
+        vehicleName: vehicle?.nickname ?? null,
+      };
+    }
+
+    return { vehicleId: null, vehicleName: null };
+  }
+
   const expenses: UnifiedEntry[] = snapshot.transactions.map((transaction) => ({
     id: transaction.id,
     kind: "expense",
@@ -239,6 +374,8 @@ export function listUnifiedEntries(snapshot: WorkspaceSnapshot, monthKey?: strin
     categoryId: transaction.categoryId,
     paymentMethod: transaction.paymentMethod,
     originModule: transaction.originModule,
+    originRefId: transaction.originRefId,
+    ...resolveVehicleContext(transaction.originModule, transaction.originRefId),
   }));
 
   const incomes: UnifiedEntry[] = snapshot.incomes.map((income) => ({
@@ -250,6 +387,8 @@ export function listUnifiedEntries(snapshot: WorkspaceSnapshot, monthKey?: strin
     centerId: income.centerId,
     incomeType: income.incomeType,
     originModule: income.originModule,
+    originRefId: income.originRefId,
+    ...resolveVehicleContext(income.originModule, income.originRefId),
   }));
 
   return [...expenses, ...incomes]
@@ -484,8 +623,8 @@ export function getConsolidatedMonthlyTrend(snapshot: WorkspaceSnapshot, months 
   return monthKeys.map((month) => {
     const consolidated = getConsolidatedSummary(snapshot, month);
     const motoCost = roundCurrency(
-      calculateFuelTotals(snapshot, month).totalCost +
-        calculateMaintenanceTotals(snapshot, month).totalCost,
+      calculateFuelTotals(snapshot, month, "all").totalCost +
+        calculateMaintenanceTotals(snapshot, month, "all").totalCost,
     );
     const store = getStoreDashboardSummary(snapshot, month);
 
@@ -698,7 +837,14 @@ export function getUpcomingDueItems(snapshot: WorkspaceSnapshot, monthKey: strin
     description: reminder.title,
   }));
 
-  return [...installments, ...recurring, ...reminders]
+  const fixedCosts = getVehicleFixedCostAgenda(snapshot, monthKey, "all", 2).map((item) => ({
+    id: item.id,
+    date: item.dueDate ?? format(addDays(new Date(), 30), "yyyy-MM-dd"),
+    amount: item.amount,
+    description: item.title,
+  }));
+
+  return [...installments, ...recurring, ...reminders, ...fixedCosts]
     .map((item) => ({
       id: item.id,
       date: item.date,
@@ -784,10 +930,17 @@ export function getAutomationFeed(snapshot: WorkspaceSnapshot, monthKey: string,
     id: item.id,
     module: "moto" as const,
     tone: item.isOverdue ? ("critical" as const) : ("warning" as const),
-    title: item.isOverdue ? "Manutenção vencida" : "Manutenção próxima",
+    title:
+      item.kind === "maintenance"
+        ? item.isOverdue
+          ? "Manutenção vencida"
+          : "Manutenção próxima"
+        : item.isOverdue
+          ? "Obrigação anual vencida"
+          : "Obrigação anual próxima",
     body: item.dueKm
       ? `${item.title} por volta de ${item.dueKm} km.`
-      : `${item.title}${item.dueDate ? ` em ${format(parseISO(item.dueDate), "dd/MM")}` : ""}.`,
+      : `${item.title}${item.dueDate ? ` em ${format(parseISO(item.dueDate), "dd/MM")}` : ""}${item.amount ? ` por ${formatCurrencyBRL(item.amount)}` : ""}.`,
     date: item.dueDate ?? null,
     dueKm: item.dueKm ?? null,
   }));
@@ -849,6 +1002,8 @@ export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
   const storeSummary = getStoreDashboardSummary(snapshot, monthKey);
   const recurrenceInsights = getRecurrenceInsights(snapshot, monthKey);
   const motoReminders = getMotoUpcomingReminders(snapshot, 5);
+  const motoFixedCosts = getVehicleFixedCostAgenda(snapshot, monthKey, "all", 2);
+  const fixedCostCoverageWarnings = getVehicleFixedCostCoverageWarnings(snapshot, "all");
   const alerts: AlertItem[] = [];
 
   if (summary.projectedCashBalance <= snapshot.settings.salaryMonthly * 0.15) {
@@ -912,7 +1067,7 @@ export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
       id: "moto-overdue",
       tone: "critical",
       module: "moto",
-      title: "Moto com manutenção vencida",
+      title: "Veículo com manutenção vencida",
       body: `${overdueReminders.length} cuidado(s) já passaram do ponto por data ou quilometragem.`,
     });
   } else if (motoReminders.length) {
@@ -920,8 +1075,40 @@ export function getAlerts(snapshot: WorkspaceSnapshot, monthKey: string) {
       id: "moto-upcoming",
       tone: "warning",
       module: "moto",
-      title: "Cuidados da moto chegando",
+      title: "Cuidados do veículo chegando",
       body: "Já existem manutenções próximas; vale se organizar antes de virar urgência.",
+    });
+  }
+
+  const overdueFixedCosts = motoFixedCosts.filter((item) => item.isOverdue);
+  if (overdueFixedCosts.length) {
+    alerts.push({
+      id: "vehicle-fixed-overdue",
+      tone: "critical",
+      module: "moto",
+      title: "Custos anuais do automóvel vencidos",
+      body: `${overdueFixedCosts.length} obrigação(ões) anual(is) já passaram da data prevista.`,
+    });
+  } else if (motoFixedCosts.length) {
+    alerts.push({
+      id: "vehicle-fixed-upcoming",
+      tone: "warning",
+      module: "moto",
+      title: "Custos anuais do automóvel no radar",
+      body: "IPVA, seguro ou licenciamento já aparecem na agenda dos próximos meses.",
+    });
+  }
+
+  if (fixedCostCoverageWarnings.length) {
+    alerts.push({
+      id: "vehicle-fixed-coverage",
+      tone: "warning",
+      module: "moto",
+      title: "Cobertura fixa do automóvel incompleta",
+      body: fixedCostCoverageWarnings
+        .slice(0, 2)
+        .map((item) => item.message)
+        .join(" "),
     });
   }
 
@@ -997,8 +1184,129 @@ export function getExpenseHighlights(snapshot: WorkspaceSnapshot, monthKey: stri
   };
 }
 
-export function calculateFuelTotals(snapshot: WorkspaceSnapshot, monthKey: string) {
-  const fuelLogs = snapshot.fuelLogs.filter((item) => formatMonthKey(item.date) === monthKey);
+function getVehicleRecord(snapshot: WorkspaceSnapshot, vehicleId?: VehicleScopeValue | null) {
+  if (vehicleId === "all") {
+    return null;
+  }
+
+  if (!vehicleId) {
+    return snapshot.vehicles[0] ?? null;
+  }
+
+  return snapshot.vehicles.find((vehicle) => vehicle.id === vehicleId) ?? null;
+}
+
+function getVehicleScope(snapshot: WorkspaceSnapshot, vehicleId?: VehicleScopeValue | null) {
+  if (vehicleId === "all") {
+    return {
+      vehicles: snapshot.vehicles,
+      vehicle: null,
+      ids: new Set(snapshot.vehicles.map((item) => item.id)),
+      isFleet: true,
+      label: snapshot.vehicles.length > 1 ? "Todos os veículos" : snapshot.vehicles[0]?.nickname ?? "Todos os veículos",
+    };
+  }
+
+  const vehicle = getVehicleRecord(snapshot, vehicleId);
+  return {
+    vehicles: vehicle ? [vehicle] : [],
+    vehicle,
+    ids: new Set(vehicle ? [vehicle.id] : []),
+    isFleet: false,
+    label: vehicle?.nickname ?? "Veículo",
+  };
+}
+
+function buildDueDateForYear(year: number, dueMonth: number, dueDay: number) {
+  const monthStart = new Date(year, Math.max(0, dueMonth - 1), 1);
+  const safeDay = Math.min(Math.max(1, dueDay), getDate(endOfMonth(monthStart)));
+  return format(new Date(year, Math.max(0, dueMonth - 1), safeDay), "yyyy-MM-dd");
+}
+
+function isDateWithinRange(date: string, start: Date, end: Date) {
+  const parsed = parseISO(date);
+  if (!isValidParsedDate(parsed)) {
+    return false;
+  }
+
+  return isWithinInterval(parsed, { start, end });
+}
+
+function getFuelEfficiencyEntries(snapshot: WorkspaceSnapshot, vehicleId?: VehicleScopeValue | null) {
+  const scope = getVehicleScope(snapshot, vehicleId);
+
+  return scope.vehicles
+    .flatMap((vehicle) => {
+      const logs = snapshot.fuelLogs
+        .filter((item) => item.vehicleId === vehicle.id)
+        .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
+
+      return logs
+        .map((log, index) => {
+          const previous = logs[index - 1];
+          if (!previous) {
+            return null;
+          }
+
+          const distanceKm = roundCurrency(log.odometerKm - previous.odometerKm);
+          if (distanceKm <= 0 || log.liters <= 0) {
+            return null;
+          }
+
+          return {
+            date: log.date,
+            vehicleId: vehicle.id,
+            vehicleName: vehicle.nickname,
+            distanceKm,
+            liters: log.liters,
+            totalCost: log.totalCost,
+            kmPerLiter: roundCurrency(distanceKm / log.liters),
+            costPerKm: roundCurrency(log.totalCost / distanceKm),
+          };
+        })
+        .filter(
+          (
+            item,
+          ): item is {
+            date: string;
+            vehicleId: string;
+            vehicleName: string;
+            distanceKm: number;
+            liters: number;
+            totalCost: number;
+            kmPerLiter: number;
+            costPerKm: number;
+          } => Boolean(item),
+        );
+    })
+    .sort((a, b) => compareAsc(parseISO(a.date), parseISO(b.date)));
+}
+
+function getFixedCostRulesForVehicle(vehicle: WorkspaceSnapshot["vehicles"][number]) {
+  return [
+    {
+      kind: "ipva" as const,
+      title: "IPVA",
+      rule: vehicle.fixedCosts?.ipva ?? null,
+    },
+    {
+      kind: "insurance" as const,
+      title: "Seguro",
+      rule: vehicle.fixedCosts?.insurance ?? null,
+    },
+    {
+      kind: "licensing" as const,
+      title: "Licenciamento",
+      rule: vehicle.fixedCosts?.licensing ?? null,
+    },
+  ];
+}
+
+export function calculateFuelTotals(snapshot: WorkspaceSnapshot, monthKey: string, vehicleId?: VehicleScopeValue) {
+  const scope = getVehicleScope(snapshot, vehicleId);
+  const fuelLogs = snapshot.fuelLogs
+    .filter((item) => formatMonthKey(item.date) === monthKey)
+    .filter((item) => scope.ids.has(item.vehicleId));
 
   return {
     count: fuelLogs.length,
@@ -1008,26 +1316,89 @@ export function calculateFuelTotals(snapshot: WorkspaceSnapshot, monthKey: strin
   };
 }
 
-export function getMotoFuelInsights(snapshot: WorkspaceSnapshot, monthKey: string) {
-  const fuel = calculateFuelTotals(snapshot, monthKey);
+export function getMotoFuelInsights(snapshot: WorkspaceSnapshot, monthKey: string, vehicleId?: VehicleScopeValue) {
+  const scope = getVehicleScope(snapshot, vehicleId);
+  const fuel = calculateFuelTotals(snapshot, monthKey, vehicleId);
+  const efficiencyEntries = getFuelEfficiencyEntries(snapshot, vehicleId).filter(
+    (item) => formatMonthKey(item.date) === monthKey,
+  );
   const averagePricePerLiter = fuel.totalLiters
     ? roundCurrency(fuel.totalCost / fuel.totalLiters)
     : 0;
   const averageTicket = fuel.count ? roundCurrency(fuel.totalCost / fuel.count) : 0;
-  const lastOdometerKm =
-    fuel.logs[0]?.odometerKm ??
-    snapshot.vehicles.reduce((highest, vehicle) => Math.max(highest, vehicle.currentOdometerKm), 0);
+  const lastOdometerKm = fuel.logs.length
+    ? Math.max(...fuel.logs.map((log) => log.odometerKm))
+    : Math.max(...scope.vehicles.map((vehicle) => vehicle.currentOdometerKm), 0);
+  const monthlyDistanceKm = roundCurrency(
+    efficiencyEntries.reduce((sum, item) => sum + item.distanceKm, 0),
+  );
+  const actualKmPerLiter = fuel.totalLiters && monthlyDistanceKm
+    ? roundCurrency(monthlyDistanceKm / fuel.totalLiters)
+    : 0;
+  const averageCostPerKm = monthlyDistanceKm
+    ? roundCurrency(fuel.totalCost / monthlyDistanceKm)
+    : 0;
+  const vehiclesWithCityBaseline = scope.vehicles.filter((item) => item.averageCityKmPerLiter);
+  const vehiclesWithHighwayBaseline = scope.vehicles.filter((item) => item.averageHighwayKmPerLiter);
+  const baselineCityKmPerLiter = vehiclesWithCityBaseline.length
+    ? roundCurrency(
+        vehiclesWithCityBaseline.reduce((sum, item) => sum + (item.averageCityKmPerLiter ?? 0), 0) /
+          vehiclesWithCityBaseline.length,
+      )
+    : 0;
+  const baselineHighwayKmPerLiter = vehiclesWithHighwayBaseline.length
+    ? roundCurrency(
+        vehiclesWithHighwayBaseline.reduce((sum, item) => sum + (item.averageHighwayKmPerLiter ?? 0), 0) /
+          vehiclesWithHighwayBaseline.length,
+      )
+    : 0;
+  const baselineEfficiency = baselineCityKmPerLiter || baselineHighwayKmPerLiter;
+  const efficiencyDeltaPercent = actualKmPerLiter && baselineEfficiency
+    ? roundCurrency(((actualKmPerLiter - baselineEfficiency) / baselineEfficiency) * 100)
+    : 0;
+  const projectedFullTankRangeKm = roundCurrency(
+    scope.vehicles.reduce((sum, item) => {
+      const vehicleBaseline =
+        item.averageCityKmPerLiter ?? item.averageHighwayKmPerLiter ?? actualKmPerLiter;
+      return sum + (item.tankCapacityLiters ?? 0) * vehicleBaseline;
+    }, 0),
+  );
+  const projectedFuelBudget = roundCurrency(
+    scope.vehicles.reduce((sum, item) => {
+      const vehicleBaseline = item.averageCityKmPerLiter ?? item.averageHighwayKmPerLiter ?? 0;
+      if (!item.monthlyDistanceGoalKm || !vehicleBaseline || !averagePricePerLiter) {
+        return sum;
+      }
+      return sum + (item.monthlyDistanceGoalKm / vehicleBaseline) * averagePricePerLiter;
+    }, 0),
+  );
 
   return {
     ...fuel,
+    vehicle: scope.vehicle,
+    vehicles: scope.vehicles,
+    isFleet: scope.isFleet,
+    scopeLabel: scope.label,
     averagePricePerLiter,
     averageTicket,
     lastOdometerKm,
+    monthlyDistanceKm,
+    actualKmPerLiter,
+    averageCostPerKm,
+    baselineCityKmPerLiter,
+    baselineHighwayKmPerLiter,
+    efficiencyDeltaPercent,
+    projectedFullTankRangeKm,
+    projectedFuelBudget,
+    efficiencyEntries,
   };
 }
 
-export function calculateMaintenanceTotals(snapshot: WorkspaceSnapshot, monthKey: string) {
-  const logs = snapshot.maintenanceLogs.filter((item) => formatMonthKey(item.date) === monthKey);
+export function calculateMaintenanceTotals(snapshot: WorkspaceSnapshot, monthKey: string, vehicleId?: VehicleScopeValue) {
+  const scope = getVehicleScope(snapshot, vehicleId);
+  const logs = snapshot.maintenanceLogs
+    .filter((item) => formatMonthKey(item.date) === monthKey)
+    .filter((item) => scope.ids.has(item.vehicleId));
 
   return {
     count: logs.length,
@@ -1040,9 +1411,129 @@ export function calculateMaintenanceTotals(snapshot: WorkspaceSnapshot, monthKey
   };
 }
 
-export function getMotoMaintenanceInsights(snapshot: WorkspaceSnapshot, monthKey: string) {
-  const maintenance = calculateMaintenanceTotals(snapshot, monthKey);
-  const reminders = getMaintenanceReminders(snapshot);
+export function getVehicleFixedCostAgenda(
+  snapshot: WorkspaceSnapshot,
+  monthKey: string,
+  vehicleId?: VehicleScopeValue,
+  monthsAhead = 12,
+): VehicleFixedCostAgendaItem[] {
+  const scope = getVehicleScope(snapshot, vehicleId);
+  const start = startOfMonth(parseISO(`${monthKey}-01`));
+  const today = new Date();
+  const end = endOfMonth(addMonths(start, Math.max(0, monthsAhead - 1)));
+  const currentYear = getYear(start);
+  const currentYearStart = startOfYear(start);
+  const currentYearEnd = endOfYear(start);
+
+  return scope.vehicles
+    .flatMap((vehicle) =>
+      getFixedCostRulesForVehicle(vehicle).flatMap(({ kind, title, rule }) => {
+        if (!rule?.enabled || rule.amount <= 0) {
+          return [];
+        }
+
+        const candidates: VehicleFixedCostAgendaItem[] = [];
+
+        for (const year of [currentYear, currentYear + 1, currentYear + 2]) {
+          const dueDate = buildDueDateForYear(year, rule.dueMonth, rule.dueDay);
+          const due = parseISO(dueDate);
+          const isCurrentYearOverdue =
+            year === currentYear &&
+            isWithinInterval(due, { start: currentYearStart, end: currentYearEnd }) &&
+            isBefore(due, today);
+          const shouldInclude =
+            isDateWithinRange(dueDate, start, end) ||
+            (isCurrentYearOverdue && isBefore(due, start));
+
+          if (!shouldInclude) {
+            continue;
+          }
+
+          candidates.push({
+            id: `vehicle-fixed-${vehicle.id}-${kind}-${year}`,
+            vehicleId: vehicle.id,
+            vehicleName: vehicle.nickname,
+            kind,
+            title: `${title} • ${vehicle.nickname}`,
+            amount: roundCurrency(rule.amount),
+            dueDate,
+            dueKm: null,
+            isOverdue: isBefore(due, today),
+          });
+        }
+
+        return candidates.slice(0, 1);
+      }),
+    )
+    .sort((a, b) => {
+      if (a.isOverdue !== b.isOverdue) {
+        return a.isOverdue ? -1 : 1;
+      }
+
+      if (a.dueDate && b.dueDate) {
+        return compareAsc(parseISO(a.dueDate), parseISO(b.dueDate));
+      }
+
+      return a.title.localeCompare(b.title, "pt-BR");
+    });
+}
+
+export function getVehicleAnnualFixedCostSummary(
+  snapshot: WorkspaceSnapshot,
+  referenceYear: number,
+  vehicleId?: VehicleScopeValue,
+) {
+  const scope = getVehicleScope(snapshot, vehicleId);
+  const items = scope.vehicles.flatMap((vehicle) =>
+    getFixedCostRulesForVehicle(vehicle)
+      .filter(({ rule }) => Boolean(rule?.enabled && rule.amount > 0))
+      .map(({ kind, title, rule }) => ({
+        id: `vehicle-fixed-annual-${vehicle.id}-${kind}-${referenceYear}`,
+        vehicleId: vehicle.id,
+        vehicleName: vehicle.nickname,
+        kind,
+        title: `${title} • ${vehicle.nickname}`,
+        amount: roundCurrency(rule?.amount ?? 0),
+        dueDate: buildDueDateForYear(referenceYear, rule?.dueMonth ?? 1, rule?.dueDay ?? 1),
+      })),
+  );
+
+  return {
+    year: referenceYear,
+    total: roundCurrency(items.reduce((sum, item) => sum + item.amount, 0)),
+    items: items.sort((a, b) => compareAsc(parseISO(a.dueDate), parseISO(b.dueDate))),
+  };
+}
+
+export function getVehicleFixedCostCoverageWarnings(
+  snapshot: WorkspaceSnapshot,
+  vehicleId?: VehicleScopeValue,
+) {
+  const scope = getVehicleScope(snapshot, vehicleId);
+
+  return scope.vehicles.flatMap((vehicle) => {
+    const missing = getFixedCostRulesForVehicle(vehicle)
+      .filter(({ rule }) => !(rule?.enabled && rule.amount > 0))
+      .map(({ title }) => title);
+
+    if (!missing.length) {
+      return [];
+    }
+
+    return [
+      {
+        vehicleId: vehicle.id,
+        vehicleName: vehicle.nickname,
+        missing,
+        message: `${vehicle.nickname} sem ${missing.join(", ")} configurado(s).`,
+      },
+    ];
+  });
+}
+
+export function getMotoMaintenanceInsights(snapshot: WorkspaceSnapshot, monthKey: string, vehicleId?: VehicleScopeValue) {
+  const maintenance = calculateMaintenanceTotals(snapshot, monthKey, vehicleId);
+  const reminders = getMaintenanceReminders(snapshot, vehicleId);
   const reminderByLogId = new Map(reminders.map((reminder) => [reminder.maintenanceLogId, reminder]));
   const enrichedLogs = maintenance.logs.map((log) => ({
     ...log,
@@ -1067,8 +1558,10 @@ export function getMotoMaintenanceInsights(snapshot: WorkspaceSnapshot, monthKey
   };
 }
 
-export function getMaintenanceReminders(snapshot: WorkspaceSnapshot): MaintenanceReminder[] {
+export function getMaintenanceReminders(snapshot: WorkspaceSnapshot, vehicleId?: VehicleScopeValue): MaintenanceReminder[] {
+  const scope = getVehicleScope(snapshot, vehicleId);
   return snapshot.maintenanceLogs
+    .filter((item) => scope.ids.has(item.vehicleId))
     .filter((item) => item.recurringKm || item.recurringMonths)
     .map((item) => {
       const dueDate = item.recurringMonths
@@ -1094,12 +1587,30 @@ export function getMaintenanceReminders(snapshot: WorkspaceSnapshot): Maintenanc
         return compareAsc(parseISO(a.dueDate), parseISO(b.dueDate));
       }
 
-      return 0;
+      if (a.dueKm && b.dueKm) {
+        return a.dueKm - b.dueKm;
+      }
+
+      return a.title.localeCompare(b.title, "pt-BR");
     });
 }
 
-export function getMotoUpcomingReminders(snapshot: WorkspaceSnapshot, limit = 5) {
-  return getMaintenanceReminders(snapshot)
+export function getMotoUpcomingReminders(snapshot: WorkspaceSnapshot, limit = 5, vehicleId?: VehicleScopeValue) {
+  const maintenanceReminders = getMaintenanceReminders(snapshot, vehicleId).map((item) => ({
+    id: item.id,
+    vehicleId:
+      snapshot.maintenanceLogs.find((log) => `reminder_${log.id}` === item.id)?.vehicleId ?? "",
+    vehicleName: item.title.split("•")[1]?.trim() ?? "",
+    kind: "maintenance" as const,
+    title: item.title,
+    amount: 0,
+    dueDate: item.dueDate ?? null,
+    dueKm: item.dueKm ?? null,
+    isOverdue: item.isOverdue,
+  }));
+  const fixedCosts = getVehicleFixedCostAgenda(snapshot, formatMonthKey(new Date()), vehicleId, 12);
+
+  return [...maintenanceReminders, ...fixedCosts]
     .sort((a, b) => {
       if (a.isOverdue !== b.isOverdue) {
         return a.isOverdue ? -1 : 1;
@@ -1113,17 +1624,17 @@ export function getMotoUpcomingReminders(snapshot: WorkspaceSnapshot, limit = 5)
         return a.dueKm - b.dueKm;
       }
 
-      return 0;
+      return a.title.localeCompare(b.title, "pt-BR");
     })
     .slice(0, limit);
 }
 
-export function getMotoMonthlyTrend(snapshot: WorkspaceSnapshot, months = 6) {
+export function getMotoMonthlyTrend(snapshot: WorkspaceSnapshot, months = 6, vehicleId?: VehicleScopeValue) {
   const monthKeys = listMonthKeys(addMonths(startOfMonth(new Date()), -(months - 1)), months);
 
   return monthKeys.map((month) => {
-    const fuel = calculateFuelTotals(snapshot, month);
-    const maintenance = calculateMaintenanceTotals(snapshot, month);
+    const fuel = getMotoFuelInsights(snapshot, month, vehicleId);
+    const maintenance = calculateMaintenanceTotals(snapshot, month, vehicleId);
 
     return {
       month,
@@ -1131,13 +1642,15 @@ export function getMotoMonthlyTrend(snapshot: WorkspaceSnapshot, months = 6) {
       maintenanceCost: maintenance.totalCost,
       totalCost: roundCurrency(fuel.totalCost + maintenance.totalCost),
       liters: fuel.totalLiters,
+      distanceKm: fuel.monthlyDistanceKm,
+      kmPerLiter: fuel.actualKmPerLiter,
     };
   });
 }
 
-export function getMotoCostByCategory(snapshot: WorkspaceSnapshot, monthKey: string) {
-  const fuel = calculateFuelTotals(snapshot, monthKey);
-  const maintenance = calculateMaintenanceTotals(snapshot, monthKey);
+export function getMotoCostByCategory(snapshot: WorkspaceSnapshot, monthKey: string, vehicleId?: VehicleScopeValue) {
+  const fuel = calculateFuelTotals(snapshot, monthKey, vehicleId);
+  const maintenance = calculateMaintenanceTotals(snapshot, monthKey, vehicleId);
   const items = [
     fuel.totalCost
       ? {
@@ -1156,22 +1669,299 @@ export function getMotoCostByCategory(snapshot: WorkspaceSnapshot, monthKey: str
   return items.sort((a, b) => b.total - a.total);
 }
 
-export function getMotoDashboardSummary(snapshot: WorkspaceSnapshot, monthKey: string) {
-  const fuel = getMotoFuelInsights(snapshot, monthKey);
-  const maintenance = getMotoMaintenanceInsights(snapshot, monthKey);
-  const reminders = getMotoUpcomingReminders(snapshot, 5);
+export function getVehiclePerformanceTable(snapshot: WorkspaceSnapshot, monthKey: string) {
+  return snapshot.vehicles
+    .map((vehicle) => {
+      const summary = getMotoDashboardSummary(snapshot, monthKey, vehicle.id);
+      const fixed = getVehicleAnnualFixedCostSummary(snapshot, getYear(parseISO(`${monthKey}-01`)), vehicle.id);
+
+      return {
+        vehicleId: vehicle.id,
+        vehicleName: vehicle.nickname,
+        vehicleType: vehicle.vehicleType ?? "motorcycle",
+        monthlyCost: summary.monthlyCost,
+        fuelCost: summary.fuelCost,
+        maintenanceCost: summary.maintenanceCost,
+        annualFixedCost: fixed.total,
+        liters: summary.fuelLiters,
+        distanceKm: summary.monthlyDistanceKm,
+        kmPerLiter: summary.actualKmPerLiter,
+        costPerKm: summary.averageCostPerKm,
+        reminders: summary.reminders.length,
+      } satisfies VehiclePerformanceEntry;
+    })
+    .sort((a, b) => b.monthlyCost - a.monthlyCost);
+}
+
+export function getMotoDashboardSummary(snapshot: WorkspaceSnapshot, monthKey: string, vehicleId?: VehicleScopeValue) {
+  const fuel = getMotoFuelInsights(snapshot, monthKey, vehicleId);
+  const maintenance = getMotoMaintenanceInsights(snapshot, monthKey, vehicleId);
+  const reminders = getMotoUpcomingReminders(snapshot, 8, vehicleId);
+  const annualFixedCosts = getVehicleAnnualFixedCostSummary(snapshot, getYear(parseISO(`${monthKey}-01`)), vehicleId);
+  const nextFixedCosts = getVehicleFixedCostAgenda(snapshot, monthKey, vehicleId, 12).slice(0, 5);
+  const fixedCostCoverageWarnings = getVehicleFixedCostCoverageWarnings(snapshot, vehicleId);
 
   return {
+    vehicle: fuel.vehicle,
+    vehicles: fuel.vehicles,
+    isFleet: fuel.isFleet,
+    scopeLabel: fuel.scopeLabel,
     fuelCost: fuel.totalCost,
     fuelLiters: fuel.totalLiters,
     averagePricePerLiter: fuel.averagePricePerLiter,
     averageTicket: fuel.averageTicket,
     lastOdometerKm: fuel.lastOdometerKm,
+    monthlyDistanceKm: fuel.monthlyDistanceKm,
+    actualKmPerLiter: fuel.actualKmPerLiter,
+    averageCostPerKm: fuel.averageCostPerKm,
+    baselineCityKmPerLiter: fuel.baselineCityKmPerLiter,
+    baselineHighwayKmPerLiter: fuel.baselineHighwayKmPerLiter,
+    efficiencyDeltaPercent: fuel.efficiencyDeltaPercent,
+    projectedFullTankRangeKm: fuel.projectedFullTankRangeKm,
+    projectedFuelBudget: fuel.projectedFuelBudget,
     maintenanceCost: maintenance.totalCost,
+    annualFixedCost: annualFixedCosts.total,
+    monthlyReserveTarget: roundCurrency(annualFixedCosts.total / 12),
+    annualFixedCostItems: annualFixedCosts.items,
+    fixedCostCoverageWarnings,
+    nextFixedCosts,
     monthlyCost: roundCurrency(fuel.totalCost + maintenance.totalCost),
     recentFuelLogs: fuel.logs.slice(0, 5),
     recentMaintenance: maintenance.logs.slice(0, 5),
-    reminders: reminders.slice(0, 5),
+    reminders: reminders.slice(0, 8),
+  };
+}
+
+export function getReportPeriodRange(anchorDate: string, period: ReportPeriod) {
+  const anchor = parseISO(anchorDate);
+  const safeAnchor = isValidParsedDate(anchor) ? anchor : new Date();
+
+  if (period === "day") {
+    return {
+      start: safeAnchor,
+      end: safeAnchor,
+      label: format(safeAnchor, "dd/MM/yyyy"),
+    };
+  }
+
+  if (period === "week") {
+    const start = startOfWeek(safeAnchor, { weekStartsOn: 1 });
+    const end = endOfWeek(safeAnchor, { weekStartsOn: 1 });
+    return {
+      start,
+      end,
+      label: `${format(start, "dd/MM")} a ${format(end, "dd/MM/yyyy")}`,
+    };
+  }
+
+  if (period === "year") {
+    const start = startOfYear(safeAnchor);
+    const end = endOfYear(safeAnchor);
+    return {
+      start,
+      end,
+      label: format(start, "yyyy"),
+    };
+  }
+
+  const start = startOfMonth(safeAnchor);
+  const end = endOfMonth(safeAnchor);
+  return {
+    start,
+    end,
+    label: format(start, "MM/yyyy"),
+  };
+}
+
+function getTransactionsInRange(snapshot: WorkspaceSnapshot, start: Date, end: Date) {
+  return snapshot.transactions
+    .filter((item) => isDateWithinRange(item.transactionDate, start, end))
+    .sort((a, b) => compareDesc(parseISO(a.transactionDate), parseISO(b.transactionDate)));
+}
+
+function getIncomesInRange(snapshot: WorkspaceSnapshot, start: Date, end: Date) {
+  return snapshot.incomes
+    .filter((item) => isDateWithinRange(item.receivedAt, start, end))
+    .sort((a, b) => compareDesc(parseISO(a.receivedAt), parseISO(b.receivedAt)));
+}
+
+function getVehicleCostsInRange(snapshot: WorkspaceSnapshot, start: Date, end: Date, vehicleId?: VehicleScopeValue) {
+  const scope = getVehicleScope(snapshot, vehicleId);
+  const annualFixedCosts = getVehicleAnnualFixedCostSummary(snapshot, getYear(start), vehicleId);
+  const fixedCostCoverageWarnings = getVehicleFixedCostCoverageWarnings(snapshot, vehicleId);
+  const fuelCost = roundCurrency(
+    snapshot.fuelLogs
+      .filter((item) => scope.ids.has(item.vehicleId))
+      .filter((item) => isDateWithinRange(item.date, start, end))
+      .reduce((sum, item) => sum + item.totalCost, 0),
+  );
+  const maintenanceCost = roundCurrency(
+    snapshot.maintenanceLogs
+      .filter((item) => scope.ids.has(item.vehicleId))
+      .filter((item) => isDateWithinRange(item.date, start, end))
+      .reduce((sum, item) => sum + item.totalCost, 0),
+  );
+  const fixedCostItems = getVehicleFixedCostAgenda(snapshot, formatMonthKey(start), vehicleId, 12).filter(
+    (item) => item.dueDate && isDateWithinRange(item.dueDate, start, end),
+  );
+
+  return {
+    scopeLabel: scope.label,
+    fuelCost,
+    maintenanceCost,
+    fixedCostTotal: roundCurrency(fixedCostItems.reduce((sum, item) => sum + item.amount, 0)),
+    monthlyReserveTarget: roundCurrency(annualFixedCosts.total / 12),
+    coverageWarnings: fixedCostCoverageWarnings.map((item) => item.message),
+    totalCost: roundCurrency(fuelCost + maintenanceCost + fixedCostItems.reduce((sum, item) => sum + item.amount, 0)),
+    upcomingItems: fixedCostItems.slice(0, 6),
+  };
+}
+
+export function getPrintableSpendingReport(
+  snapshot: WorkspaceSnapshot,
+  params: {
+    anchorDate: string;
+    period: ReportPeriod;
+    vehicleId?: VehicleScopeValue;
+    style?: PrintableReportStyle;
+  },
+): PrintableSpendingReport {
+  const style = params.style ?? "neutral";
+  const range = getReportPeriodRange(params.anchorDate, params.period);
+  const transactions = getTransactionsInRange(snapshot, range.start, range.end);
+  const incomes = getIncomesInRange(snapshot, range.start, range.end);
+  const totalExpense = roundCurrency(transactions.reduce((sum, item) => sum + item.amount, 0));
+  const totalIncome = roundCurrency(incomes.reduce((sum, item) => sum + item.amount, 0));
+  const net = roundCurrency(totalIncome - totalExpense);
+  const categoryTotals = new Map<string, number>();
+  const centerTotals = new Map<string, number>();
+  const paymentMethodTotals = new Map<string, number>();
+
+  transactions.forEach((transaction) => {
+    categoryTotals.set(
+      transaction.categoryId,
+      roundCurrency((categoryTotals.get(transaction.categoryId) ?? 0) + transaction.amount),
+    );
+    centerTotals.set(
+      transaction.centerId,
+      roundCurrency((centerTotals.get(transaction.centerId) ?? 0) + transaction.amount),
+    );
+    paymentMethodTotals.set(
+      transaction.paymentMethod,
+      roundCurrency((paymentMethodTotals.get(transaction.paymentMethod) ?? 0) + transaction.amount),
+    );
+  });
+
+  const topCategories = Array.from(categoryTotals.entries())
+    .map(([categoryId, total]) => {
+      const category = snapshot.categories.find((item) => item.id === categoryId);
+      return {
+        label: category?.name ?? "Categoria",
+        total,
+        share: totalExpense ? roundCurrency((total / totalExpense) * 100) : 0,
+      };
+    })
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6);
+
+  const topCenters = Array.from(centerTotals.entries())
+    .map(([centerId, total]) => ({
+      label: snapshot.costCenters.find((item) => item.id === centerId)?.name ?? "Centro",
+      total,
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 6);
+
+  const paymentMethods = Array.from(paymentMethodTotals.entries())
+    .map(([paymentMethod, total]) => ({
+      label: paymentMethodLabels[paymentMethod as PaymentMethod],
+      total,
+    }))
+    .sort((a, b) => b.total - a.total);
+
+  const biggestExpenseSource = [...transactions].sort((a, b) => b.amount - a.amount)[0];
+  const biggestExpense = biggestExpenseSource
+    ? {
+        description: biggestExpenseSource.description,
+        amount: biggestExpenseSource.amount,
+        date: biggestExpenseSource.transactionDate,
+      }
+    : null;
+
+  const automovel = getVehicleCostsInRange(snapshot, range.start, range.end, params.vehicleId);
+  const recommendations: string[] = [];
+  const topCategory = topCategories[0];
+  const topPaymentMethod = paymentMethods[0];
+  const headline = buildPrintableReportHeadline(style, {
+    net,
+    totalExpense,
+    topCategory,
+    automovelTotal: automovel.totalCost,
+  });
+
+  if (style === "economy") {
+    recommendations.push(
+      topCategory
+        ? `Se precisar cortar agora, comece por ${topCategory.label}. Ela concentra ${Math.round(topCategory.share)}% das despesas do período.`
+        : "Se precisar cortar agora, priorize saídas recorrentes e operacionais antes de gastos pontuais menores.",
+    );
+  }
+
+  if (style === "operational") {
+    recommendations.push(
+      `Separe revisão, combustível e custos fixos anuais com uma reserva mensal de ${formatCurrencyBRL(automovel.monthlyReserveTarget)} para não transformar obrigação previsível em urgência.`,
+    );
+  }
+
+  if (topCategory && topCategory.share >= 25) {
+    recommendations.push(
+      `${topCategory.label} lidera o período com ${formatCurrencyBRL(topCategory.total)} e ${Math.round(topCategory.share)}% das despesas. Vale revisar esse grupo primeiro.`,
+    );
+  }
+
+  if (topPaymentMethod && totalExpense > 0 && topPaymentMethod.total / totalExpense >= 0.35) {
+    recommendations.push(
+      `${topPaymentMethod.label} concentrou ${formatCurrencyBRL(topPaymentMethod.total)} do período. Se isso não era esperado, vale revisar esse fluxo.`,
+    );
+  }
+
+  if (automovel.totalCost > 0 && totalExpense > 0 && automovel.totalCost / totalExpense >= 0.2) {
+    recommendations.push(
+      `Automóvel respondeu por ${formatCurrencyBRL(automovel.totalCost)} no período. Combustível, manutenção e custos fixos merecem atenção.`,
+    );
+  }
+
+  if (automovel.coverageWarnings.length) {
+    recommendations.push(
+      `Antes do próximo fechamento, complete a cobertura fixa do automóvel: ${automovel.coverageWarnings
+        .map((item) => item.replace(/\.$/, ""))
+        .join(" ")}`,
+    );
+  }
+
+  if (net < 0) {
+    recommendations.push("O período fechou negativo. Reduzir a categoria líder e revisar despesas operacionais tende a gerar o maior impacto.");
+  } else if (!recommendations.length) {
+    recommendations.push("O período está equilibrado. O foco pode ser reduzir desperdícios e manter constância nas categorias com gasto recorrente.");
+  }
+
+  return {
+    style,
+    headline,
+    period: params.period,
+    periodLabel: range.label,
+    anchorDate: params.anchorDate,
+    startDate: format(range.start, "yyyy-MM-dd"),
+    endDate: format(range.end, "yyyy-MM-dd"),
+    totalIncome,
+    totalExpense,
+    net,
+    topCategories,
+    topCenters,
+    paymentMethods,
+    biggestExpense,
+    recommendations,
+    automovel,
   };
 }
 
@@ -1385,15 +2175,17 @@ export function getStoreOperationalHighlights(snapshot: WorkspaceSnapshot, month
   };
 }
 
-export function getMotoMonthlyComparison(snapshot: WorkspaceSnapshot, monthKey: string) {
+export function getMotoMonthlyComparison(snapshot: WorkspaceSnapshot, monthKey: string, vehicleId?: string) {
   const previousMonth = formatMonthKey(addMonths(parseISO(`${monthKey}-01`), -1));
-  const current = getMotoDashboardSummary(snapshot, monthKey);
-  const previous = getMotoDashboardSummary(snapshot, previousMonth);
+  const current = getMotoDashboardSummary(snapshot, monthKey, vehicleId);
+  const previous = getMotoDashboardSummary(snapshot, previousMonth, vehicleId);
 
   return {
     monthlyCost: createDeltaMetric(current.monthlyCost, previous.monthlyCost),
     fuelCost: createDeltaMetric(current.fuelCost, previous.fuelCost),
     liters: createDeltaMetric(current.fuelLiters, previous.fuelLiters),
+    distanceKm: createDeltaMetric(current.monthlyDistanceKm, previous.monthlyDistanceKm),
+    kmPerLiter: createDeltaMetric(current.actualKmPerLiter, previous.actualKmPerLiter),
     maintenanceCost: createDeltaMetric(current.maintenanceCost, previous.maintenanceCost),
     reminders: createDeltaMetric(current.reminders.length, previous.reminders.length),
   };
@@ -1414,13 +2206,17 @@ export function getStoreMonthlyComparison(snapshot: WorkspaceSnapshot, monthKey:
   };
 }
 
-export function getHubExecutiveSummary(snapshot: WorkspaceSnapshot, monthKey: string) {
+export function getHubExecutiveSummary(
+  snapshot: WorkspaceSnapshot,
+  monthKey: string,
+  vehicleId?: VehicleScopeValue,
+) {
   const finance = getDashboardSummary(snapshot, monthKey);
-  const moto = getMotoDashboardSummary(snapshot, monthKey);
+  const moto = getMotoDashboardSummary(snapshot, monthKey, vehicleId ?? "all");
   const store = getStoreDashboardSummary(snapshot, monthKey);
   const previousMonth = formatMonthKey(addMonths(parseISO(`${monthKey}-01`), -1));
   const previousFinance = getDashboardSummary(snapshot, previousMonth);
-  const previousMoto = getMotoDashboardSummary(snapshot, previousMonth);
+  const previousMoto = getMotoDashboardSummary(snapshot, previousMonth, vehicleId ?? "all");
   const previousStore = getStoreDashboardSummary(snapshot, previousMonth);
   const alerts = getAlerts(snapshot, monthKey);
   const upcoming = getUpcomingDueItems(snapshot, monthKey);

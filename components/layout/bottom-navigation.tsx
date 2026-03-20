@@ -12,7 +12,7 @@ import { useFinanceStore } from "@/store/use-finance-store";
 const primaryItems = [
   { href: "/", label: "Resumo", icon: House },
   { href: "/financeiro", label: "Financeiro", icon: Wallet },
-  { href: "/moto", label: "Moto", icon: Bike },
+  { href: "/moto", label: "Veículos", icon: Bike },
   { href: "/loja", label: "Loja", icon: Printer },
 ] as const;
 

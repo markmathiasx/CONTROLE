@@ -16,6 +16,7 @@ import {
   storeOrderStatuses,
   supplyUnits,
   themeModes,
+  vehicleTypes,
   workspaceMemberRoles,
   wallets,
 } from "@/types/domain";
@@ -178,6 +179,7 @@ export const recurrenceSchema = baseEntitySchema.extend({
 export const vehicleSchema = baseEntitySchema.extend({
   workspaceId: z.string().min(1),
   centerId: z.string().min(1),
+  vehicleType: z.enum(vehicleTypes).optional(),
   brand: z.string().min(1),
   model: z.string().min(1),
   year: z.number().int().min(1900),
@@ -185,6 +187,42 @@ export const vehicleSchema = baseEntitySchema.extend({
   plate: z.string().nullish(),
   fuelType: z.string().min(1),
   currentOdometerKm: z.number().nonnegative(),
+  averageCityKmPerLiter: z.number().positive().nullish(),
+  averageHighwayKmPerLiter: z.number().positive().nullish(),
+  tankCapacityLiters: z.number().positive().nullish(),
+  monthlyDistanceGoalKm: z.number().nonnegative().nullish(),
+  fixedCosts: z
+    .object({
+      ipva: z
+        .object({
+          enabled: z.boolean(),
+          amount: z.number().nonnegative(),
+          dueMonth: z.number().int().min(1).max(12),
+          dueDay: z.number().int().min(1).max(31),
+          notes: z.string().nullish(),
+        })
+        .nullish(),
+      insurance: z
+        .object({
+          enabled: z.boolean(),
+          amount: z.number().nonnegative(),
+          dueMonth: z.number().int().min(1).max(12),
+          dueDay: z.number().int().min(1).max(31),
+          notes: z.string().nullish(),
+        })
+        .nullish(),
+      licensing: z
+        .object({
+          enabled: z.boolean(),
+          amount: z.number().nonnegative(),
+          dueMonth: z.number().int().min(1).max(12),
+          dueDay: z.number().int().min(1).max(31),
+          notes: z.string().nullish(),
+        })
+        .nullish(),
+    })
+    .nullish(),
+  notes: z.string().nullish(),
 });
 
 export const fuelLogSchema = baseEntitySchema.extend({

@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: appName,
     short_name: appName,
     description:
-      "Hub mobile-first para finanças, operação da moto e produção da loja 3D, com uso rápido no celular.",
+      "Hub mobile-first para finanças, operação do automóvel e produção da loja 3D, com uso rápido no celular.",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -43,9 +43,9 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icon?size=192", sizes: "192x192", type: "image/png" }],
       },
       {
-        name: "Moto",
-        short_name: "Moto",
-        description: "Abrir o módulo da moto",
+        name: "Automóvel",
+        short_name: "Auto",
+        description: "Abrir o módulo de veículos",
         url: "/moto",
         icons: [{ src: "/icon?size=192", sizes: "192x192", type: "image/png" }],
       },

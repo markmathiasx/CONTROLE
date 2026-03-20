@@ -7,6 +7,8 @@ import type {
   StoreOrderStatus,
   SupplyUnit,
   ThemeMode,
+  VehicleFixedCostKind,
+  VehicleType,
 } from "@/types/domain";
 
 export const appName = "Controle Financeiro MMSVH";
@@ -25,8 +27,19 @@ export const costCenterKindLabels: Record<CostCenterKind, string> = {
   me: "Eu",
   partner: "Namorada",
   shared: "Casal",
-  moto: "Moto",
+  moto: "Automóvel",
   store: "Loja",
+};
+
+export const vehicleTypeLabels: Record<VehicleType, string> = {
+  motorcycle: "Moto",
+  car: "Carro",
+};
+
+export const vehicleFixedCostLabels: Record<VehicleFixedCostKind, string> = {
+  ipva: "IPVA",
+  insurance: "Seguro",
+  licensing: "Licenciamento",
 };
 
 export const incomeTypeLabels: Record<IncomeType, string> = {
@@ -270,6 +283,60 @@ export const categoryPresets: Array<
 ];
 
 export const filamentMaterialOptions = ["PLA", "PETG", "ABS", "TPU", "Outro"] as const;
+
+export const vehiclePresetOptions = [
+  {
+    id: "cg-160",
+    label: "Honda CG 160",
+    vehicleType: "motorcycle" as const,
+    brand: "Honda",
+    model: "CG 160",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 42,
+    averageHighwayKmPerLiter: 45,
+    tankCapacityLiters: 16,
+    fixedCosts: {
+      ipva: { enabled: true, amount: 220, dueMonth: 1, dueDay: 25 },
+      insurance: { enabled: true, amount: 480, dueMonth: 6, dueDay: 10 },
+      licensing: { enabled: true, amount: 180, dueMonth: 9, dueDay: 15 },
+    },
+    years: Array.from({ length: 11 }, (_, index) => 2016 + index),
+  },
+  {
+    id: "prisma-1-0-2015",
+    label: "Prisma 1.0 2015",
+    vehicleType: "car" as const,
+    brand: "Chevrolet",
+    model: "Prisma 1.0",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 12.2,
+    averageHighwayKmPerLiter: 15.2,
+    tankCapacityLiters: 54,
+    fixedCosts: {
+      ipva: { enabled: true, amount: 1100, dueMonth: 1, dueDay: 25 },
+      insurance: { enabled: true, amount: 1900, dueMonth: 6, dueDay: 10 },
+      licensing: { enabled: true, amount: 180, dueMonth: 9, dueDay: 15 },
+    },
+    years: [2015],
+  },
+  {
+    id: "gol-1-5-2016",
+    label: "Gol 1.5 2016",
+    vehicleType: "car" as const,
+    brand: "Volkswagen",
+    model: "Gol 1.5",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 11.2,
+    averageHighwayKmPerLiter: 14.1,
+    tankCapacityLiters: 55,
+    fixedCosts: {
+      ipva: { enabled: true, amount: 1250, dueMonth: 1, dueDay: 25 },
+      insurance: { enabled: true, amount: 2100, dueMonth: 6, dueDay: 10 },
+      licensing: { enabled: true, amount: 180, dueMonth: 9, dueDay: 15 },
+    },
+    years: [2016],
+  },
+] as const;
 
 export const supplyCategoryOptions = [
   "Tinta",

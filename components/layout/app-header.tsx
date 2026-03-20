@@ -38,7 +38,7 @@ import { getWorkspaceKindLabel } from "@/utils/workspaces";
 const pageTitles: Record<string, string> = {
   "/": "Hub consolidado",
   "/financeiro": "Dashboard financeiro",
-  "/moto": "Dashboard da moto",
+  "/moto": "Dashboard do automóvel",
   "/moto/abastecimentos": "Abastecimentos",
   "/moto/manutencoes": "Manutenções",
   "/loja": "Dashboard da loja",
@@ -82,7 +82,7 @@ export function AppHeader() {
 
   const navPills = [
     { href: "/financeiro", label: "Financeiro", icon: Wallet },
-    { href: "/moto", label: "Moto", icon: Bike },
+    { href: "/moto", label: "Veículos", icon: Bike },
     { href: "/loja", label: "Loja", icon: Printer },
   ] as const;
 
