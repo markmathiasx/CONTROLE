@@ -27,6 +27,7 @@ import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { QuickLinkCard } from "@/components/shared/quick-link-card";
 import { SummaryCard } from "@/components/shared/summary-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { estimateVehiclePresetCostProfile, findVehiclePreset } from "@/lib/constants";
 import {
   formatCompactCurrencyBRL,
   formatCurrencyBRL,
@@ -131,6 +132,29 @@ export function MotoPage() {
     return `/relatorios?${query}` as AppRoute;
   }, [resolvedVehicleScope]);
   const vehicleTypeLabel = selectedVehicle?.vehicleType === "car" ? "Carro" : "Moto";
+  const referenceCostPerKm = React.useMemo(() => {
+    if (!snapshot?.vehicles.length) {
+      return 0;
+    }
+
+    const profiles = (selectedVehicle ? [selectedVehicle] : snapshot.vehicles)
+      .map((vehicle) => {
+        const preset = findVehiclePreset(vehicle.brand, vehicle.model, vehicle.year);
+        if (!preset) {
+          return null;
+        }
+        return estimateVehiclePresetCostProfile(preset, {
+          annualKm: vehicle.monthlyDistanceGoalKm ? vehicle.monthlyDistanceGoalKm * 12 : undefined,
+        });
+      })
+      .filter((profile): profile is NonNullable<typeof profile> => Boolean(profile));
+
+    if (!profiles.length) {
+      return 0;
+    }
+
+    return profiles.reduce((sum, profile) => sum + profile.totalCostPerKm, 0) / profiles.length;
+  }, [selectedVehicle, snapshot]);
 
   if (!initialized || !snapshot || !summary || !comparison) {
     return <PageSkeleton cards={5} rows={3} />;
@@ -195,7 +219,9 @@ export function MotoPage() {
           icon={Gauge}
           label="Consumo real"
           value={summary.actualKmPerLiter ? `${summary.actualKmPerLiter} km/L` : "Sem base"}
-          detail={`Custo por km: ${formatCurrencyBRL(summary.averageCostPerKm)}`}
+          detail={`Custo por km: ${formatCurrencyBRL(summary.averageCostPerKm || referenceCostPerKm)}${
+            summary.averageCostPerKm ? "" : " (ref.)"
+          }`}
           accent="from-emerald-400/20 via-emerald-500/10 to-transparent"
         />
         <SummaryCard

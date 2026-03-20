@@ -28,12 +28,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
+  estimateVehiclePresetCostProfile,
   findVehiclePreset,
   getVehicleMaintenanceReferences,
+  getVehiclePresetOptions,
   getVehiclePresetById,
   themeLabels,
   vehicleFixedCostLabels,
-  vehiclePresetOptions,
+  vehiclePresetYearOptions,
   vehicleTypeLabels,
 } from "@/lib/constants";
 import { formatCurrencyBRL } from "@/lib/formatters";
@@ -171,6 +173,11 @@ export function SettingsPage() {
   const [newWorkspaceKind, setNewWorkspaceKind] = React.useState<"shared" | "personal">("shared");
   const [selectedVehicleId, setSelectedVehicleId] = React.useState("");
   const [vehiclePresetId, setVehiclePresetId] = React.useState("custom");
+  const [vehiclePresetTypeFilter, setVehiclePresetTypeFilter] = React.useState<"all" | VehicleFormValues["vehicleType"]>("all");
+  const [vehiclePresetYearFilter, setVehiclePresetYearFilter] = React.useState<number | "all">(
+    new Date().getFullYear(),
+  );
+  const [vehiclePresetQuery, setVehiclePresetQuery] = React.useState("");
   const [vehicleForm, setVehicleForm] = React.useState<VehicleFormValues>(() => toVehicleFormState());
   const [busyAction, setBusyAction] = React.useState<string | null>(null);
 
@@ -255,9 +262,19 @@ export function SettingsPage() {
   const selectedVehiclePreset =
     getVehiclePresetById(vehiclePresetId === "custom" ? undefined : vehiclePresetId) ??
     findVehiclePreset(vehicleForm.brand, vehicleForm.model, vehicleForm.year);
+  const filteredVehiclePresets = getVehiclePresetOptions({
+    vehicleType: vehiclePresetTypeFilter,
+    year: vehiclePresetYearFilter,
+    query: vehiclePresetQuery,
+  });
   const selectedVehiclePresetAnnualCost = selectedVehiclePreset
     ? Object.values(selectedVehiclePreset.fixedCosts).reduce((sum, rule) => sum + (rule.enabled ? rule.amount : 0), 0)
     : 0;
+  const selectedVehiclePresetCostProfile = selectedVehiclePreset
+    ? estimateVehiclePresetCostProfile(selectedVehiclePreset, {
+        annualKm: vehicleForm.monthlyDistanceGoalKm ? vehicleForm.monthlyDistanceGoalKm * 12 : undefined,
+      })
+    : null;
   const selectedVehiclePresetYearsLabel = selectedVehiclePreset
     ? `${selectedVehiclePreset.years[0]}-${selectedVehiclePreset.years[selectedVehiclePreset.years.length - 1]}`
     : "";
@@ -277,6 +294,10 @@ export function SettingsPage() {
 
     setSelectedVehicleId("");
     setVehiclePresetId(preset?.id ?? "custom");
+    if (preset) {
+      setVehiclePresetTypeFilter(preset.vehicleType);
+      setVehiclePresetYearFilter(suggestedYear);
+    }
     setVehicleForm({
       id: undefined,
       vehicleType: preset?.vehicleType ?? "motorcycle",
@@ -1040,31 +1061,83 @@ export function SettingsPage() {
               })}
 
               <div className="rounded-2xl border border-dashed border-white/12 bg-white/4 p-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vehicle-preset">Modelo sugerido</Label>
-                  <Select
-                    value={vehiclePresetId}
-                    onValueChange={(value) => {
-                      setVehiclePresetId(value);
-                      if (value === "custom") {
-                        startNewVehicle();
-                        return;
+                <div className="grid gap-3">
+                  <div className="space-y-2">
+                    <Label>Filtro de tipo</Label>
+                    <Select
+                      value={vehiclePresetTypeFilter}
+                      onValueChange={(value) =>
+                        setVehiclePresetTypeFilter(value as "all" | VehicleFormValues["vehicleType"])
                       }
-                      startNewVehicle(value);
-                    }}
-                  >
-                    <SelectTrigger id="vehicle-preset">
-                      <SelectValue placeholder="Escolha um preset útil" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="custom">Manual</SelectItem>
-                      {vehiclePresetOptions.map((preset) => (
-                        <SelectItem key={preset.id} value={preset.id}>
-                          {`${vehicleTypeLabels[preset.vehicleType]} • ${preset.label}`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Carro + moto</SelectItem>
+                        <SelectItem value="car">Carro</SelectItem>
+                        <SelectItem value="motorcycle">Moto</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ano de referência</Label>
+                    <Select
+                      value={vehiclePresetYearFilter === "all" ? "all" : String(vehiclePresetYearFilter)}
+                      onValueChange={(value) =>
+                        setVehiclePresetYearFilter(value === "all" ? "all" : Number(value))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os anos</SelectItem>
+                        {vehiclePresetYearOptions.map((year) => (
+                          <SelectItem key={year} value={String(year)}>
+                            {year}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Buscar modelo</Label>
+                    <Input
+                      value={vehiclePresetQuery}
+                      onChange={(event) => setVehiclePresetQuery(event.target.value)}
+                      placeholder="Ex.: gol 1.0, cg 160, prisma..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="vehicle-preset">Modelo sugerido</Label>
+                      <Badge variant="muted">{filteredVehiclePresets.length} opção(ões)</Badge>
+                    </div>
+                    <Select
+                      value={vehiclePresetId}
+                      onValueChange={(value) => {
+                        setVehiclePresetId(value);
+                        if (value === "custom") {
+                          startNewVehicle();
+                          return;
+                        }
+                        startNewVehicle(value);
+                      }}
+                    >
+                      <SelectTrigger id="vehicle-preset">
+                        <SelectValue placeholder="Escolha um preset útil" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="custom">Manual</SelectItem>
+                        {filteredVehiclePresets.map((preset) => (
+                          <SelectItem key={preset.id} value={preset.id}>
+                            {`${vehicleTypeLabels[preset.vehicleType]} • ${preset.label}`}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
                 <Button type="button" variant="secondary" className="mt-3 w-full rounded-2xl" onClick={() => startNewVehicle(vehiclePresetId === "custom" ? undefined : vehiclePresetId)}>
                   <Plus className="size-4" />
@@ -1091,6 +1164,29 @@ export function SettingsPage() {
                         <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Fixos anuais base</p>
                         <p className="mt-1 text-sm font-medium text-zinc-100">
                           {formatCurrencyBRL(selectedVehiclePresetAnnualCost)}/ano
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Custo estimado / km</p>
+                        <p className="mt-1 text-sm font-medium text-zinc-100">
+                          {selectedVehiclePresetCostProfile
+                            ? formatCurrencyBRL(selectedVehiclePresetCostProfile.totalCostPerKm)
+                            : formatCurrencyBRL(0)}
+                          /km
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                          Combustível + manutenção + fixos
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Cesta de peças/ano</p>
+                        <p className="mt-1 text-sm font-medium text-zinc-100">
+                          {selectedVehiclePresetCostProfile
+                            ? formatCurrencyBRL(selectedVehiclePresetCostProfile.annualMaintenanceCost)
+                            : formatCurrencyBRL(0)}
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                          Base para manutenção preventiva
                         </p>
                       </div>
                     </div>

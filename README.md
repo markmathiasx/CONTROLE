@@ -331,7 +331,7 @@ Em `/moto`:
 
 - abastecimentos com cálculo bidirecional entre valor, litros e preço/litro
 - manutenção com categorias e recorrência simples
-- presets nacionais populares (2016+) para carro e moto com consumo médio e custos fixos anuais de referência
+- presets nacionais populares (2016-2026) para carro e moto, incluindo CG 160, Prisma 1.0 e Gol 1.5 com consumo médio e custos fixos anuais de referência
 - checklist rápido de peças/serviços por veículo com faixa de custo sugerida
 - atualização do odômetro
 - custo mensal da moto

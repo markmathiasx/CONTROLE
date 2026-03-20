@@ -301,6 +301,8 @@ export interface VehiclePresetOption {
   vehicleType: VehicleType;
   brand: string;
   model: string;
+  engineLabel?: string;
+  segment?: string;
   fuelType: string;
   averageCityKmPerLiter: number;
   averageHighwayKmPerLiter: number;
@@ -311,6 +313,20 @@ export interface VehiclePresetOption {
     licensing: { enabled: boolean; amount: number; dueMonth: number; dueDay: number };
   };
   years: number[];
+}
+
+export interface VehiclePresetCostProfile {
+  presetId: string;
+  annualKm: number;
+  fuelPricePerLiter: number;
+  annualFuelCost: number;
+  annualMaintenanceCost: number;
+  annualFixedCost: number;
+  annualTotalCost: number;
+  fuelCostPerKm: number;
+  maintenanceCostPerKm: number;
+  fixedCostPerKm: number;
+  totalCostPerKm: number;
 }
 
 function yearRange(start: number, end = new Date().getFullYear()) {
@@ -890,6 +906,8 @@ export const vehiclePresetOptions: VehiclePresetOption[] = [
     vehicleType: "car",
     brand: "Chevrolet",
     model: "Spin 1.8",
+    engineLabel: "1.8 aspirado",
+    segment: "familiar",
     fuelType: "Flex",
     averageCityKmPerLiter: 9.7,
     averageHighwayKmPerLiter: 11.9,
@@ -897,9 +915,363 @@ export const vehiclePresetOptions: VehiclePresetOption[] = [
     fixedCosts: buildFixedCosts(1850, 3400),
     years: yearRange(2016),
   },
+  {
+    id: "strada-1-3",
+    label: "Fiat Strada 1.3",
+    vehicleType: "car",
+    brand: "Fiat",
+    model: "Strada 1.3",
+    engineLabel: "1.3 Firefly",
+    segment: "picape",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 11.4,
+    averageHighwayKmPerLiter: 13.8,
+    tankCapacityLiters: 55,
+    fixedCosts: buildFixedCosts(1880, 3300),
+    years: yearRange(2021),
+  },
+  {
+    id: "saveiro-1-6",
+    label: "Volkswagen Saveiro 1.6",
+    vehicleType: "car",
+    brand: "Volkswagen",
+    model: "Saveiro 1.6",
+    engineLabel: "1.6 MSI",
+    segment: "picape",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 10.2,
+    averageHighwayKmPerLiter: 12.8,
+    tankCapacityLiters: 55,
+    fixedCosts: buildFixedCosts(1760, 3150),
+    years: yearRange(2016),
+  },
+  {
+    id: "montana-1-2-turbo",
+    label: "Chevrolet Montana 1.2 Turbo",
+    vehicleType: "car",
+    brand: "Chevrolet",
+    model: "Montana 1.2 Turbo",
+    engineLabel: "1.2 Turbo",
+    segment: "picape",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 11.3,
+    averageHighwayKmPerLiter: 13.5,
+    tankCapacityLiters: 44,
+    fixedCosts: buildFixedCosts(2050, 3850),
+    years: yearRange(2023),
+  },
+  {
+    id: "uno-1-0",
+    label: "Fiat Uno 1.0",
+    vehicleType: "car",
+    brand: "Fiat",
+    model: "Uno 1.0",
+    engineLabel: "1.0 Fire",
+    segment: "hatch",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 13.2,
+    averageHighwayKmPerLiter: 15.1,
+    tankCapacityLiters: 48,
+    fixedCosts: buildFixedCosts(980, 1900),
+    years: yearRange(2016, 2021),
+  },
+  {
+    id: "sandero-1-0",
+    label: "Renault Sandero 1.0",
+    vehicleType: "car",
+    brand: "Renault",
+    model: "Sandero 1.0",
+    engineLabel: "1.0 SCe",
+    segment: "hatch",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 12.8,
+    averageHighwayKmPerLiter: 14.9,
+    tankCapacityLiters: 50,
+    fixedCosts: buildFixedCosts(1120, 2100),
+    years: yearRange(2016, 2022),
+  },
+  {
+    id: "voyage-1-6",
+    label: "Volkswagen Voyage 1.6",
+    vehicleType: "car",
+    brand: "Volkswagen",
+    model: "Voyage 1.6",
+    engineLabel: "1.6 MSI",
+    segment: "sedan",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 11.5,
+    averageHighwayKmPerLiter: 13.9,
+    tankCapacityLiters: 55,
+    fixedCosts: buildFixedCosts(1350, 2400),
+    years: yearRange(2016, 2023),
+  },
+  {
+    id: "versa-1-6",
+    label: "Nissan Versa 1.6",
+    vehicleType: "car",
+    brand: "Nissan",
+    model: "Versa 1.6",
+    engineLabel: "1.6 aspirado",
+    segment: "sedan",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 12.3,
+    averageHighwayKmPerLiter: 14.7,
+    tankCapacityLiters: 41,
+    fixedCosts: buildFixedCosts(1650, 3000),
+    years: yearRange(2020),
+  },
+  {
+    id: "city-1-5",
+    label: "Honda City 1.5",
+    vehicleType: "car",
+    brand: "Honda",
+    model: "City 1.5",
+    engineLabel: "1.5 aspirado",
+    segment: "sedan",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 12.6,
+    averageHighwayKmPerLiter: 14.8,
+    tankCapacityLiters: 40,
+    fixedCosts: buildFixedCosts(1820, 3320),
+    years: yearRange(2022),
+  },
+  {
+    id: "kicks-1-6",
+    label: "Nissan Kicks 1.6",
+    vehicleType: "car",
+    brand: "Nissan",
+    model: "Kicks 1.6",
+    engineLabel: "1.6 aspirado",
+    segment: "suv",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 11.5,
+    averageHighwayKmPerLiter: 13.8,
+    tankCapacityLiters: 41,
+    fixedCosts: buildFixedCosts(1860, 3450),
+    years: yearRange(2017),
+  },
+  {
+    id: "tcross-1-0-tsi",
+    label: "Volkswagen T-Cross 1.0 TSI",
+    vehicleType: "car",
+    brand: "Volkswagen",
+    model: "T-Cross 1.0 TSI",
+    engineLabel: "1.0 TSI",
+    segment: "suv",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 11.2,
+    averageHighwayKmPerLiter: 13.6,
+    tankCapacityLiters: 52,
+    fixedCosts: buildFixedCosts(2150, 3900),
+    years: yearRange(2020),
+  },
+  {
+    id: "pulse-1-0-turbo",
+    label: "Fiat Pulse 1.0 Turbo",
+    vehicleType: "car",
+    brand: "Fiat",
+    model: "Pulse 1.0 Turbo",
+    engineLabel: "1.0 Turbo 200",
+    segment: "suv",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 11.8,
+    averageHighwayKmPerLiter: 14.2,
+    tankCapacityLiters: 47,
+    fixedCosts: buildFixedCosts(1820, 3350),
+    years: yearRange(2022),
+  },
+  {
+    id: "fastback-1-0-turbo",
+    label: "Fiat Fastback 1.0 Turbo",
+    vehicleType: "car",
+    brand: "Fiat",
+    model: "Fastback 1.0 Turbo",
+    engineLabel: "1.0 Turbo 200",
+    segment: "suv-coupe",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 11.2,
+    averageHighwayKmPerLiter: 13.7,
+    tankCapacityLiters: 47,
+    fixedCosts: buildFixedCosts(1980, 3700),
+    years: yearRange(2023),
+  },
+  {
+    id: "c3-1-0",
+    label: "Citroën C3 1.0",
+    vehicleType: "car",
+    brand: "Citroën",
+    model: "C3 1.0",
+    engineLabel: "1.0 Firefly",
+    segment: "hatch",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 12.9,
+    averageHighwayKmPerLiter: 14.9,
+    tankCapacityLiters: 47,
+    fixedCosts: buildFixedCosts(1320, 2500),
+    years: yearRange(2023),
+  },
+  {
+    id: "peugeot-208-1-0-turbo",
+    label: "Peugeot 208 1.0 Turbo",
+    vehicleType: "car",
+    brand: "Peugeot",
+    model: "208 1.0 Turbo",
+    engineLabel: "1.0 Turbo 200",
+    segment: "hatch",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 12.2,
+    averageHighwayKmPerLiter: 14.8,
+    tankCapacityLiters: 47,
+    fixedCosts: buildFixedCosts(1580, 2860),
+    years: yearRange(2024),
+  },
+  {
+    id: "hilux-2-8-diesel",
+    label: "Toyota Hilux 2.8 Diesel",
+    vehicleType: "car",
+    brand: "Toyota",
+    model: "Hilux 2.8 Diesel",
+    engineLabel: "2.8 Diesel",
+    segment: "picape",
+    fuelType: "Diesel",
+    averageCityKmPerLiter: 9.1,
+    averageHighwayKmPerLiter: 11.1,
+    tankCapacityLiters: 80,
+    fixedCosts: buildFixedCosts(4200, 7600),
+    years: yearRange(2016),
+  },
+  {
+    id: "crosser-150",
+    label: "Yamaha Crosser 150",
+    vehicleType: "motorcycle",
+    brand: "Yamaha",
+    model: "Crosser 150",
+    engineLabel: "150 cc",
+    segment: "trail",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 40,
+    averageHighwayKmPerLiter: 44,
+    tankCapacityLiters: 12,
+    fixedCosts: buildFixedCosts(240, 560),
+    years: yearRange(2016),
+  },
+  {
+    id: "lander-250",
+    label: "Yamaha Lander 250",
+    vehicleType: "motorcycle",
+    brand: "Yamaha",
+    model: "Lander 250",
+    engineLabel: "250 cc",
+    segment: "trail",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 31,
+    averageHighwayKmPerLiter: 35,
+    tankCapacityLiters: 13.6,
+    fixedCosts: buildFixedCosts(420, 980),
+    years: yearRange(2020),
+  },
+  {
+    id: "cb300f",
+    label: "Honda CB 300F",
+    vehicleType: "motorcycle",
+    brand: "Honda",
+    model: "CB 300F",
+    engineLabel: "300 cc",
+    segment: "street",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 30,
+    averageHighwayKmPerLiter: 34,
+    tankCapacityLiters: 14.1,
+    fixedCosts: buildFixedCosts(450, 1050),
+    years: yearRange(2023),
+  },
+  {
+    id: "sahara-300",
+    label: "Honda Sahara 300",
+    vehicleType: "motorcycle",
+    brand: "Honda",
+    model: "Sahara 300",
+    engineLabel: "300 cc",
+    segment: "trail",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 28,
+    averageHighwayKmPerLiter: 32,
+    tankCapacityLiters: 13.8,
+    fixedCosts: buildFixedCosts(520, 1250),
+    years: yearRange(2024),
+  },
+  {
+    id: "factor-125i",
+    label: "Yamaha Factor 125i",
+    vehicleType: "motorcycle",
+    brand: "Yamaha",
+    model: "Factor 125i",
+    engineLabel: "125 cc",
+    segment: "street",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 45,
+    averageHighwayKmPerLiter: 50,
+    tankCapacityLiters: 15.7,
+    fixedCosts: buildFixedCosts(190, 450),
+    years: yearRange(2016),
+  },
+  {
+    id: "start-160",
+    label: "Honda Start 160",
+    vehicleType: "motorcycle",
+    brand: "Honda",
+    model: "Start 160",
+    engineLabel: "160 cc",
+    segment: "street",
+    fuelType: "Flex",
+    averageCityKmPerLiter: 41,
+    averageHighwayKmPerLiter: 45,
+    tankCapacityLiters: 14.6,
+    fixedCosts: buildFixedCosts(210, 500),
+    years: yearRange(2024),
+  },
 ];
 
 const vehiclePresetMaintenanceOverrides: Record<string, VehicleMaintenanceReference[]> = {
+  "cg-160": [
+    ...motorcycleMaintenanceReferences,
+    {
+      id: "cg160-injecao",
+      label: "Limpeza de TBI e injeção",
+      category: "eletrica",
+      recommendedKmInterval: 12000,
+      recommendedMonthsInterval: 12,
+      estimatedCostMin: 90,
+      estimatedCostMax: 240,
+      typicalParts: ["Limpeza de bico", "Regulagem de marcha lenta", "Scanner"],
+    },
+  ],
+  "prisma-1-0-2015": [
+    ...carMaintenanceReferences,
+    {
+      id: "prisma-suspensao",
+      label: "Kit suspensão dianteira",
+      category: "outros",
+      recommendedKmInterval: 35000,
+      recommendedMonthsInterval: 24,
+      estimatedCostMin: 480,
+      estimatedCostMax: 1450,
+      typicalParts: ["Amortecedores", "Batente", "Coxim", "Bieleta"],
+    },
+  ],
+  "gol-1-5-2016": [
+    ...carMaintenanceReferences,
+    {
+      id: "gol-correia-acessorios",
+      label: "Correia de acessórios",
+      category: "outros",
+      recommendedKmInterval: 40000,
+      recommendedMonthsInterval: 24,
+      estimatedCostMin: 220,
+      estimatedCostMax: 740,
+      typicalParts: ["Correia", "Tensor", "Mão de obra"],
+    },
+  ],
   "s10-2-8-diesel": [
     ...carMaintenanceReferences,
     {
@@ -964,6 +1336,100 @@ export function getVehicleMaintenanceReferences(params?: {
     "motorcycle";
 
   return inferredType === "car" ? carMaintenanceReferences : motorcycleMaintenanceReferences;
+}
+
+export const vehiclePresetYearOptions = yearRange(2016, 2026);
+
+function getFuelReferencePriceByType(fuelType: string) {
+  const normalized = fuelType.trim().toLowerCase();
+  if (normalized.includes("diesel")) {
+    return 6.05;
+  }
+  if (normalized.includes("etanol")) {
+    return 4.2;
+  }
+  return 6.2;
+}
+
+function estimateMaintenanceAnnualCost(
+  references: VehicleMaintenanceReference[],
+  annualKm: number,
+) {
+  return references.reduce((sum, reference) => {
+    const midpoint = (reference.estimatedCostMin + reference.estimatedCostMax) / 2;
+    if (!reference.recommendedKmInterval && !reference.recommendedMonthsInterval) {
+      return sum + midpoint;
+    }
+
+    const byKm =
+      reference.recommendedKmInterval && reference.recommendedKmInterval > 0
+        ? annualKm / reference.recommendedKmInterval
+        : 0;
+    const byMonths =
+      reference.recommendedMonthsInterval && reference.recommendedMonthsInterval > 0
+        ? 12 / reference.recommendedMonthsInterval
+        : 0;
+    const annualOccurrences = Math.max(byKm, byMonths, 0.25);
+    return sum + midpoint * annualOccurrences;
+  }, 0);
+}
+
+export function estimateVehiclePresetCostProfile(
+  preset: VehiclePresetOption,
+  options?: {
+    annualKm?: number;
+    fuelPricePerLiter?: number;
+  },
+): VehiclePresetCostProfile {
+  const annualKm = options?.annualKm ?? (preset.vehicleType === "car" ? 12000 : 9000);
+  const fuelPricePerLiter = options?.fuelPricePerLiter ?? getFuelReferencePriceByType(preset.fuelType);
+  const averageKmPerLiter = preset.averageCityKmPerLiter || preset.averageHighwayKmPerLiter || 1;
+  const annualFuelCost = (annualKm / averageKmPerLiter) * fuelPricePerLiter;
+  const maintenanceAnnualCost = estimateMaintenanceAnnualCost(
+    getVehicleMaintenanceReferences({ presetId: preset.id, vehicleType: preset.vehicleType }),
+    annualKm,
+  );
+  const annualFixedCost = Object.values(preset.fixedCosts).reduce(
+    (sum, rule) => sum + (rule.enabled ? rule.amount : 0),
+    0,
+  );
+  const annualTotalCost = annualFuelCost + maintenanceAnnualCost + annualFixedCost;
+
+  return {
+    presetId: preset.id,
+    annualKm,
+    fuelPricePerLiter,
+    annualFuelCost,
+    annualMaintenanceCost: maintenanceAnnualCost,
+    annualFixedCost,
+    annualTotalCost,
+    fuelCostPerKm: annualFuelCost / annualKm,
+    maintenanceCostPerKm: maintenanceAnnualCost / annualKm,
+    fixedCostPerKm: annualFixedCost / annualKm,
+    totalCostPerKm: annualTotalCost / annualKm,
+  };
+}
+
+export function getVehiclePresetOptions(params?: {
+  vehicleType?: VehicleType | "all";
+  year?: number | "all";
+  query?: string;
+}) {
+  const vehicleType = params?.vehicleType ?? "all";
+  const year = params?.year ?? "all";
+  const query = params?.query?.trim().toLowerCase();
+
+  return vehiclePresetOptions
+    .filter((preset) => (vehicleType === "all" ? true : preset.vehicleType === vehicleType))
+    .filter((preset) => (year === "all" ? true : preset.years.includes(year)))
+    .filter((preset) => {
+      if (!query) {
+        return true;
+      }
+      const searchable = `${preset.label} ${preset.brand} ${preset.model} ${preset.engineLabel ?? ""}`.toLowerCase();
+      return searchable.includes(query);
+    })
+    .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 }
 
 export const supplyCategoryOptions = [
