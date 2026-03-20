@@ -22,7 +22,7 @@ export function QuickLinkCard({
   className?: string;
 }) {
   return (
-    <Link href={href} className={cn("group block", className)}>
+    <Link href={href} prefetch={false} className={cn("group block", className)}>
       <Card className="overflow-hidden transition-transform hover:-translate-y-1">
         <CardContent className="relative p-5">
           <div className={cn("absolute inset-0 bg-gradient-to-br opacity-75", accent)} />

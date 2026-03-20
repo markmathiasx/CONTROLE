@@ -81,6 +81,9 @@ const nextConfig: NextConfig = {
   typedRoutes: true,
   poweredByHeader: false,
   outputFileTracingRoot: path.resolve(__dirname),
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts"],
+  },
   async headers() {
     return [
       {

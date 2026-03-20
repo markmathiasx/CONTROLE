@@ -131,7 +131,7 @@ export function FloatingActionButton() {
                 className="justify-start rounded-2xl"
                 onClick={() => setSpeedDialOpen(false)}
               >
-                <Link href={item.href}>
+                <Link href={item.href} prefetch={false}>
                   <Icon className="size-4" />
                   {item.label}
                 </Link>

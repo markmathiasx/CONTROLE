@@ -1,7 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Boxes, DollarSign, PackageSearch, PaintBucket, Printer, ReceiptText, Sparkles, Zap } from "lucide-react";
 
 import { ChartCard } from "@/components/shared/chart-card";
@@ -26,6 +26,17 @@ import {
   getStoreMonthlyTrend,
   getStoreOperationalHighlights,
 } from "@/utils/finance";
+
+const StoreOperationalTrendChart = dynamic(
+  () =>
+    import("@/features/store/charts/store-operational-trend-chart").then(
+      (module) => module.StoreOperationalTrendChart,
+    ),
+  {
+    ssr: false,
+    loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-white/5" />,
+  },
+);
 
 export function StorePage() {
   const snapshot = useFinanceStore((state) => state.snapshot);
@@ -177,24 +188,14 @@ export function StorePage() {
         description="Faturamento, custo e lucro bruto lado a lado para enxergar o ritmo da operação."
       >
         <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={trend.map((item) => ({
-                month: formatMonthShortLabel(item.month),
-                faturamento: item.revenue,
-                custo: item.cost,
-                lucro: item.profit,
-              }))}
-            >
-              <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-              <XAxis dataKey="month" stroke="#71717a" />
-              <YAxis stroke="#71717a" />
-              <Tooltip />
-              <Bar dataKey="faturamento" fill="#06b6d4" radius={[14, 14, 0, 0]} />
-              <Bar dataKey="custo" fill="#f59e0b" radius={[14, 14, 0, 0]} />
-              <Bar dataKey="lucro" fill="#10b981" radius={[14, 14, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <StoreOperationalTrendChart
+            data={trend.map((item) => ({
+              month: formatMonthShortLabel(item.month),
+              faturamento: item.revenue,
+              custo: item.cost,
+              lucro: item.profit,
+            }))}
+          />
         </div>
       </ChartCard>
 
@@ -232,7 +233,7 @@ export function StorePage() {
               />
             )}
             <Button asChild variant="secondary" className="w-full rounded-2xl">
-              <Link href="/loja/producao">Registrar produção</Link>
+              <Link href="/loja/producao" prefetch={false}>Registrar produção</Link>
             </Button>
           </CardContent>
         </Card>
@@ -265,7 +266,7 @@ export function StorePage() {
               />
             )}
             <Button asChild variant="secondary" className="w-full rounded-2xl">
-              <Link href="/loja/pedidos">Registrar pedido</Link>
+              <Link href="/loja/pedidos" prefetch={false}>Registrar pedido</Link>
             </Button>
           </CardContent>
         </Card>
@@ -334,7 +335,7 @@ export function StorePage() {
               <EmptyState icon={Boxes} title="Sem itens críticos" description="O estoque está acima da faixa de alerta por enquanto." />
             )}
             <Button asChild variant="secondary" className="w-full rounded-2xl">
-              <Link href="/loja/estoque">Abrir estoque</Link>
+              <Link href="/loja/estoque" prefetch={false}>Abrir estoque</Link>
             </Button>
           </CardContent>
         </Card>

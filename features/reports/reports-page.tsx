@@ -3,19 +3,9 @@
 import * as React from "react";
 import type { Route } from "next";
 import { getYear, parseISO } from "date-fns";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Repeat, Sparkles, TrendingUp, Wallet, Wrench, Zap } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import { ChartCard } from "@/components/shared/chart-card";
 import { DeltaPill } from "@/components/shared/delta-pill";
@@ -84,6 +74,80 @@ type AiFinancialReview = {
   nextActions: string[];
   caution: string;
 };
+
+const chartLoading = () => <div className="h-full w-full animate-pulse rounded-2xl bg-white/5" />;
+
+const ReportsCategoryBarChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsCategoryBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ReportsCenterBarChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsCenterBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ReportsFutureInstallmentsBarChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsFutureInstallmentsBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ReportsMonthlyEvolutionLineChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsMonthlyEvolutionLineChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ReportsMotoCostByCategoryBarChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsMotoCostByCategoryBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ReportsMotoMonthlyTrendBarChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsMotoMonthlyTrendBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ReportsStoreMonthlyTrendLineChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsStoreMonthlyTrendLineChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ReportsStoreCostBreakdownBarChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsStoreCostBreakdownBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ReportsConsolidatedByModuleBarChart = dynamic(
+  () =>
+    import("@/features/reports/charts/reports-charts").then(
+      (module) => module.ReportsConsolidatedByModuleBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
 
 export function ReportsPage() {
   const router = useRouter();
@@ -442,35 +506,25 @@ export function ReportsPage() {
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartCard title="Gastos por categoria" description="Top categorias do mês selecionado.">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={categoryData.map((item) => ({ name: item.category?.name ?? "Categoria", total: item.total }))}>
-                    <XAxis dataKey="name" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#10b981" radius={[14, 14, 0, 0]}>
-                      {categoryData.map((item) => (
-                        <Cell key={item.category?.id ?? item.total} fill={item.category?.color ?? "#10b981"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <ReportsCategoryBarChart
+                  data={categoryData.map((item) => ({
+                    name: item.category?.name ?? "Categoria",
+                    total: item.total,
+                    fill: item.category?.color ?? "#10b981",
+                  }))}
+                />
               </div>
             </ChartCard>
 
             <ChartCard title="Gastos por centro" description="Pessoal, casal, automóvel e loja lado a lado.">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={centerData.map((item) => ({ name: item.center?.name ?? "Centro", total: item.total }))}>
-                    <XAxis dataKey="name" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#06b6d4" radius={[14, 14, 0, 0]}>
-                      {centerData.map((item) => (
-                        <Cell key={item.center?.id ?? item.total} fill={item.center?.color ?? "#06b6d4"} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <ReportsCenterBarChart
+                  data={centerData.map((item) => ({
+                    name: item.center?.name ?? "Centro",
+                    total: item.total,
+                    fill: item.center?.color ?? "#06b6d4",
+                  }))}
+                />
               </div>
             </ChartCard>
           </div>
@@ -489,14 +543,12 @@ export function ReportsPage() {
 
             <ChartCard title="Parcelas futuras por mês" description="Comprometimento do cartão nos próximos meses.">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={futureInstallments.map((item) => ({ month: formatMonthShortLabel(item.month), total: item.total }))}>
-                    <XAxis dataKey="month" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#8b5cf6" radius={[14, 14, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <ReportsFutureInstallmentsBarChart
+                  data={futureInstallments.map((item) => ({
+                    month: formatMonthShortLabel(item.month),
+                    total: item.total,
+                  }))}
+                />
               </div>
             </ChartCard>
           </div>
@@ -504,23 +556,14 @@ export function ReportsPage() {
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartCard title="Comparativo mensal do financeiro" description="Receita, gasto e fatura nos últimos meses.">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={monthlyEvolution.map((item) => ({
-                      month: formatMonthShortLabel(item.month),
-                      receita: item.income,
-                      gasto: item.spent,
-                      fatura: item.invoice,
-                    }))}
-                  >
-                    <XAxis dataKey="month" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="receita" stroke="#10b981" strokeWidth={3} />
-                    <Line type="monotone" dataKey="gasto" stroke="#06b6d4" strokeWidth={3} />
-                    <Line type="monotone" dataKey="fatura" stroke="#8b5cf6" strokeWidth={3} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <ReportsMonthlyEvolutionLineChart
+                  data={monthlyEvolution.map((item) => ({
+                    month: formatMonthShortLabel(item.month),
+                    receita: item.income,
+                    gasto: item.spent,
+                    fatura: item.invoice,
+                  }))}
+                />
               </div>
             </ChartCard>
 

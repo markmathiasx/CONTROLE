@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -13,17 +14,6 @@ import {
   UtensilsCrossed,
   WalletCards,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import { BudgetProgressCard } from "@/components/shared/budget-progress-card";
 import { ChartCard } from "@/components/shared/chart-card";
@@ -56,6 +46,48 @@ import {
   getRecurrenceInsights,
   getUpcomingDueItems,
 } from "@/utils/finance";
+
+const chartLoading = () => <div className="h-full w-full animate-pulse rounded-2xl bg-white/5" />;
+
+const PaymentMethodBarChart = dynamic(
+  () =>
+    import("@/features/dashboard/charts/payment-method-bar-chart").then(
+      (module) => module.PaymentMethodBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const TopCategoriesPieChart = dynamic(
+  () =>
+    import("@/features/dashboard/charts/top-categories-pie-chart").then(
+      (module) => module.TopCategoriesPieChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const SpendByCenterBarChart = dynamic(
+  () =>
+    import("@/features/dashboard/charts/spend-by-center-bar-chart").then(
+      (module) => module.SpendByCenterBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ProjectionStackedBarChart = dynamic(
+  () =>
+    import("@/features/dashboard/charts/projection-stacked-bar-chart").then(
+      (module) => module.ProjectionStackedBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
+
+const ConsolidatedTrendBarChart = dynamic(
+  () =>
+    import("@/features/dashboard/charts/consolidated-trend-bar-chart").then(
+      (module) => module.ConsolidatedTrendBarChart,
+    ),
+  { ssr: false, loading: chartLoading },
+);
 
 export function DashboardPage() {
   const initialized = useFinanceStore((state) => state.initialized);
@@ -230,24 +262,15 @@ export function DashboardPage() {
           {summary.spendByPaymentMethod.length ? (
             <div className="space-y-4">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={summary.spendByPaymentMethod.map((item) => ({
-                      name: item.label,
-                      total: item.total,
-                    }))}
-                    layout="vertical"
-                    margin={{ left: 8, right: 8 }}
-                  >
-                    <XAxis type="number" stroke="#71717a" />
-                    <YAxis type="category" dataKey="name" stroke="#71717a" width={72} />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#10b981" radius={[0, 14, 14, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <PaymentMethodBarChart
+                  data={summary.spendByPaymentMethod.map((item) => ({
+                    name: item.label,
+                    total: item.total,
+                  }))}
+                />
               </div>
               <Button asChild variant="secondary" className="w-full rounded-2xl">
-                <Link href="/transacoes">Abrir histórico completo</Link>
+                <Link href="/transacoes" prefetch={false}>Abrir histórico completo</Link>
               </Button>
             </div>
           ) : (
@@ -400,28 +423,13 @@ export function DashboardPage() {
           {summary.topCategories.length ? (
             <div className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
               <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={summary.topCategories.map((item) => ({
-                        name: item.category?.name ?? "Categoria",
-                        value: item.total,
-                        color: item.category?.color ?? "#10b981",
-                      }))}
-                      innerRadius={56}
-                      outerRadius={80}
-                      dataKey="value"
-                    >
-                      {summary.topCategories.map((item) => (
-                        <Cell
-                          key={item.category?.id ?? item.total}
-                          fill={item.category?.color ?? "#10b981"}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
+                <TopCategoriesPieChart
+                  data={summary.topCategories.map((item) => ({
+                    name: item.category?.name ?? "Categoria",
+                    value: item.total,
+                    color: item.category?.color ?? "#10b981",
+                  }))}
+                />
               </div>
               <div className="space-y-3">
                 {summary.topCategories.map((item) => (
@@ -452,22 +460,13 @@ export function DashboardPage() {
 
         <ChartCard title="Gasto por centro" description="Quem puxou mais o mês até aqui.">
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={summary.spendByCenter.map((item) => ({
+            <SpendByCenterBarChart
+              data={summary.spendByCenter.map((item) => ({
                 name: item.center?.name ?? "Centro",
                 total: item.total,
                 fill: item.center?.color ?? "#10b981",
-              }))}>
-                <XAxis dataKey="name" stroke="#71717a" />
-                <YAxis stroke="#71717a" />
-                <Tooltip />
-                <Bar dataKey="total" radius={[18, 18, 4, 4]}>
-                  {summary.spendByCenter.map((item) => (
-                    <Cell key={item.center?.id ?? item.total} fill={item.center?.color ?? "#10b981"} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+              }))}
+            />
           </div>
         </ChartCard>
       </div>
@@ -503,19 +502,13 @@ export function DashboardPage() {
 
         <ChartCard title="Projeção dos próximos 3 meses" description="Comprometimento monetário estimado.">
           <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={projection.map((item) => ({
+            <ProjectionStackedBarChart
+              data={projection.map((item) => ({
                 month: formatMonthShortLabel(item.month),
                 comprometido: item.committed,
                 restante: Math.max(item.remaining, 0),
-              }))}>
-                <XAxis dataKey="month" stroke="#71717a" />
-                <YAxis stroke="#71717a" />
-                <Tooltip />
-                <Bar dataKey="comprometido" stackId="a" fill="#10b981" radius={[18, 18, 0, 0]} />
-                <Bar dataKey="restante" stackId="a" fill="#1f2937" radius={[0, 0, 18, 18]} />
-              </BarChart>
-            </ResponsiveContainer>
+              }))}
+            />
           </div>
         </ChartCard>
       </div>
@@ -525,23 +518,14 @@ export function DashboardPage() {
         description="Receita, despesa operacional e saldo líquido no mesmo trilho."
       >
         <div className="h-80">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={consolidatedTrend.map((item) => ({
-                month: formatMonthShortLabel(item.month),
-                receita: item.income,
-                operacional: item.operationalExpense,
-                saldo: item.net,
-              }))}
-            >
-              <XAxis dataKey="month" stroke="#71717a" />
-              <YAxis stroke="#71717a" />
-              <Tooltip />
-              <Bar dataKey="receita" fill="#10b981" radius={[14, 14, 0, 0]} />
-              <Bar dataKey="operacional" fill="#f59e0b" radius={[14, 14, 0, 0]} />
-              <Bar dataKey="saldo" fill="#06b6d4" radius={[14, 14, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <ConsolidatedTrendBarChart
+            data={consolidatedTrend.map((item) => ({
+              month: formatMonthShortLabel(item.month),
+              receita: item.income,
+              operacional: item.operationalExpense,
+              saldo: item.net,
+            }))}
+          />
         </div>
       </ChartCard>
 
@@ -624,7 +608,7 @@ export function DashboardPage() {
               description="Crie limites por categoria para acompanhar alerta, consumo e disciplina do mês."
               action={
                 <Button asChild variant="secondary" className="rounded-2xl">
-                  <Link href="/orcamentos">Abrir orçamentos</Link>
+                  <Link href="/orcamentos" prefetch={false}>Abrir orçamentos</Link>
                 </Button>
               }
             />

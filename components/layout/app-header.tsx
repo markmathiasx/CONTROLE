@@ -157,7 +157,7 @@ export function AppHeader() {
       <header className="sticky top-0 z-30 border-b border-white/8 bg-black/40 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div className="min-w-0">
-            <Link href="/" className="inline-flex items-center gap-2">
+            <Link href="/" prefetch={false} className="inline-flex items-center gap-2">
               <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-2">
                 <Sparkles className="size-4 text-emerald-300" />
               </div>
@@ -210,6 +210,7 @@ export function AppHeader() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={false}
                   className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
                     active
                       ? "border-emerald-400/30 bg-emerald-400/12 text-emerald-200"
@@ -361,7 +362,7 @@ export function AppHeader() {
               ) : null}
 
               <Button asChild variant="secondary" className="justify-start rounded-2xl">
-                <Link href="/configuracoes" onClick={() => setProfileMenuOpen(false)}>
+                <Link href="/configuracoes" prefetch={false} onClick={() => setProfileMenuOpen(false)}>
                   <UserCircle2 className="size-4" />
                   Abrir configurações
                 </Link>

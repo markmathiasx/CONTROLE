@@ -391,7 +391,7 @@ export function HubPage() {
               </div>
             </div>
             <Button asChild className="w-full justify-between rounded-2xl">
-              <Link href="/financeiro">
+              <Link href="/financeiro" prefetch={false}>
                 Abrir dashboard financeiro
                 <ArrowRight className="size-4" />
               </Link>
@@ -430,7 +430,7 @@ export function HubPage() {
               </div>
             </div>
             <Button asChild className="w-full justify-between rounded-2xl">
-              <Link href={motoModuleHref}>
+              <Link href={motoModuleHref} prefetch={false}>
                 Abrir módulo do automóvel
                 <ArrowRight className="size-4" />
               </Link>
@@ -477,7 +477,7 @@ export function HubPage() {
               </div>
             </div>
             <Button asChild className="w-full justify-between rounded-2xl">
-              <Link href="/loja">
+              <Link href="/loja" prefetch={false}>
                 Abrir módulo da loja
                 <ArrowRight className="size-4" />
               </Link>

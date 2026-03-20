@@ -1,14 +1,20 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 
 import { AppHeader } from "@/components/layout/app-header";
 import { BottomNavigation } from "@/components/layout/bottom-navigation";
 import { ConnectivityBanner } from "@/components/layout/connectivity-banner";
 import { FloatingActionButton } from "@/components/layout/floating-action-button";
-import { QuickAddModal } from "@/components/shared/quick-add-modal";
 import type { RuntimeConfig } from "@/types/domain";
 import { useAuthStore } from "@/store/use-auth-store";
+import { useFinanceStore } from "@/store/use-finance-store";
+
+const QuickAddModal = dynamic(
+  () => import("@/components/shared/quick-add-modal").then((module) => module.QuickAddModal),
+  { ssr: false },
+);
 
 export function AppShell({
   children,
@@ -20,6 +26,7 @@ export function AppShell({
   const pathname = usePathname();
   const authStatus = useAuthStore((state) => state.status);
   const authInitialized = useAuthStore((state) => state.initialized);
+  const quickAddOpen = useFinanceStore((state) => state.quickAddOpen);
 
   const isAuthRoute = ["/unlock", "/login", "/cadastro", "/logout"].some((route) =>
     pathname.startsWith(route),
@@ -49,7 +56,7 @@ export function AppShell({
       </main>
       <FloatingActionButton />
       <BottomNavigation />
-      <QuickAddModal />
+      {quickAddOpen ? <QuickAddModal /> : null}
     </div>
   );
 }

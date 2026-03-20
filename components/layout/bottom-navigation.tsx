@@ -70,6 +70,7 @@ export function BottomNavigation() {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch={false}
                 className={cn(
                   "flex min-w-0 flex-1 flex-col items-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-medium transition",
                   active ? "bg-emerald-400/14 text-emerald-200" : "text-zinc-500",
@@ -114,7 +115,7 @@ export function BottomNavigation() {
                 className="h-12 justify-start rounded-2xl"
                 onClick={() => setMoreMenuOpen(false)}
               >
-                <Link href={item.href}>
+                <Link href={item.href} prefetch={false}>
                   <FolderKanban className="size-4" />
                   {item.label}
                 </Link>

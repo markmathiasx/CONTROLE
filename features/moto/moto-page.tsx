@@ -2,17 +2,9 @@
 
 import * as React from "react";
 import type { Route as AppRoute } from "next";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import {
   BadgeDollarSign,
   Bike,
@@ -51,6 +43,17 @@ import {
   getMotoMonthlyTrend,
   getVehiclePerformanceTable,
 } from "@/utils/finance";
+
+const MotoMonthlyTrendChart = dynamic(
+  () =>
+    import("@/features/moto/charts/moto-monthly-trend-chart").then(
+      (module) => module.MotoMonthlyTrendChart,
+    ),
+  {
+    ssr: false,
+    loading: () => <div className="h-full w-full animate-pulse rounded-2xl bg-white/5" />,
+  },
+);
 
 export function MotoPage() {
   const router = useRouter();
@@ -357,22 +360,13 @@ export function MotoPage() {
           description="Combustível e manutenção lado a lado para facilitar a leitura do custo real."
         >
           <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={monthlyTrend.map((item) => ({
-                  month: formatMonthShortLabel(item.month),
-                  combustivel: item.fuelCost,
-                  manutencao: item.maintenanceCost,
-                }))}
-              >
-                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                <XAxis dataKey="month" stroke="#71717a" />
-                <YAxis stroke="#71717a" />
-                <Tooltip />
-                <Bar dataKey="combustivel" fill="#06b6d4" radius={[12, 12, 0, 0]} />
-                <Bar dataKey="manutencao" fill="#8b5cf6" radius={[12, 12, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <MotoMonthlyTrendChart
+              data={monthlyTrend.map((item) => ({
+                month: formatMonthShortLabel(item.month),
+                combustivel: item.fuelCost,
+                manutencao: item.maintenanceCost,
+              }))}
+            />
           </div>
         </ChartCard>
 
@@ -613,7 +607,7 @@ export function MotoPage() {
           )}
 
           <Button asChild variant="secondary" className="w-full rounded-2xl">
-            <Link href="/moto/abastecimentos">Registrar abastecimento</Link>
+            <Link href="/moto/abastecimentos" prefetch={false}>Registrar abastecimento</Link>
           </Button>
         </CardContent>
       </Card>
