@@ -710,19 +710,12 @@ export function ReportsPage() {
             </ChartCard>
             <ChartCard title="Manutenção por categoria" description="Onde o veículo mais consumiu.">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={motoCostByCategory.map((item) => ({
-                      name: item.label,
-                      total: item.total,
-                    }))}
-                  >
-                    <XAxis dataKey="name" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#f59e0b" radius={[14, 14, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <ReportsMotoCostByCategoryBarChart
+                  data={motoCostByCategory.map((item) => ({
+                    name: item.label,
+                    total: item.total,
+                  }))}
+                />
               </div>
             </ChartCard>
           </div>
@@ -772,15 +765,13 @@ export function ReportsPage() {
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartCard title="Evolução mensal do veículo" description="Combustível e manutenção dos últimos meses.">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={motoTrend.map((item) => ({ month: formatMonthShortLabel(item.month), combustivel: item.fuelCost, manutencao: item.maintenanceCost }))}>
-                    <XAxis dataKey="month" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Bar dataKey="combustivel" fill="#06b6d4" radius={[14, 14, 0, 0]} />
-                    <Bar dataKey="manutencao" fill="#8b5cf6" radius={[14, 14, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <ReportsMotoMonthlyTrendBarChart
+                  data={motoTrend.map((item) => ({
+                    month: formatMonthShortLabel(item.month),
+                    combustivel: item.fuelCost,
+                    manutencao: item.maintenanceCost,
+                  }))}
+                />
               </div>
             </ChartCard>
             <ChartCard title="Próximos cuidados" description="Lembretes por meses/km e obrigações anuais do automóvel.">
@@ -854,23 +845,14 @@ export function ReportsPage() {
             </ChartCard>
             <ChartCard title="Comparativo mensal da loja" description="Faturamento, custo e lucro dos últimos meses.">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={storeMonthlyTrend.map((item) => ({
-                      month: formatMonthShortLabel(item.month),
-                      faturamento: item.revenue,
-                      custo: item.cost,
-                      lucro: item.profit,
-                    }))}
-                  >
-                    <XAxis dataKey="month" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="faturamento" stroke="#10b981" strokeWidth={3} />
-                    <Line type="monotone" dataKey="custo" stroke="#06b6d4" strokeWidth={3} />
-                    <Line type="monotone" dataKey="lucro" stroke="#f59e0b" strokeWidth={3} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <ReportsStoreMonthlyTrendLineChart
+                  data={storeMonthlyTrend.map((item) => ({
+                    month: formatMonthShortLabel(item.month),
+                    faturamento: item.revenue,
+                    custo: item.cost,
+                    lucro: item.profit,
+                  }))}
+                />
               </div>
             </ChartCard>
           </div>
@@ -892,21 +874,14 @@ export function ReportsPage() {
             </ChartCard>
             <ChartCard title="Breakdown de custo produtivo" description="Energia, pintura, insumos e acabamento.">
               <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={[
-                      { name: "Energia", total: storeInsights.totalEnergyCost },
-                      { name: "Pintura", total: storeInsights.totalPaintCost },
-                      { name: "Outros insumos", total: storeInsights.totalOtherSupplyCost },
-                      { name: "Acabamento", total: storeInsights.totalFinishingCost },
-                    ]}
-                  >
-                    <XAxis dataKey="name" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Bar dataKey="total" fill="#06b6d4" radius={[14, 14, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <ReportsStoreCostBreakdownBarChart
+                  data={[
+                    { name: "Energia", total: storeInsights.totalEnergyCost },
+                    { name: "Pintura", total: storeInsights.totalPaintCost },
+                    { name: "Outros insumos", total: storeInsights.totalOtherSupplyCost },
+                    { name: "Acabamento", total: storeInsights.totalFinishingCost },
+                  ]}
+                />
               </div>
             </ChartCard>
           </div>
@@ -1240,23 +1215,14 @@ export function ReportsPage() {
           <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
             <ChartCard title="Comparativo mês a mês" description="Receita, gasto e fatura nos últimos meses.">
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={monthlyEvolution.map((item) => ({
-                      month: formatMonthShortLabel(item.month),
-                      receita: item.income,
-                      gasto: item.spent,
-                      fatura: item.invoice,
-                    }))}
-                  >
-                    <XAxis dataKey="month" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="receita" stroke="#10b981" strokeWidth={3} />
-                    <Line type="monotone" dataKey="gasto" stroke="#06b6d4" strokeWidth={3} />
-                    <Line type="monotone" dataKey="fatura" stroke="#8b5cf6" strokeWidth={3} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <ReportsMonthlyEvolutionLineChart
+                  data={monthlyEvolution.map((item) => ({
+                    month: formatMonthShortLabel(item.month),
+                    receita: item.income,
+                    gasto: item.spent,
+                    fatura: item.invoice,
+                  }))}
+                />
               </div>
             </ChartCard>
 
@@ -1293,23 +1259,14 @@ export function ReportsPage() {
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
             <ChartCard title="Consolidado geral por módulo" description="Receita e custo pessoal, automóvel e loja no mesmo horizonte.">
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={consolidatedTrend.map((item) => ({
-                      month: formatMonthShortLabel(item.month),
-                      pessoal: item.personalExpense,
-                      moto: item.motoCost,
-                      loja: item.storeProfit,
-                    }))}
-                  >
-                    <XAxis dataKey="month" stroke="#71717a" />
-                    <YAxis stroke="#71717a" />
-                    <Tooltip />
-                    <Bar dataKey="pessoal" stackId="a" fill="#06b6d4" radius={[14, 14, 0, 0]} />
-                    <Bar dataKey="moto" stackId="a" fill="#f59e0b" radius={[14, 14, 0, 0]} />
-                    <Bar dataKey="loja" stackId="a" fill="#10b981" radius={[14, 14, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                <ReportsConsolidatedByModuleBarChart
+                  data={consolidatedTrend.map((item) => ({
+                    month: formatMonthShortLabel(item.month),
+                    pessoal: item.personalExpense,
+                    moto: item.motoCost,
+                    loja: item.storeProfit,
+                  }))}
+                />
               </div>
             </ChartCard>
 
