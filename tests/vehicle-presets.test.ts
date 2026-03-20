@@ -31,6 +31,7 @@ describe("vehicle presets", () => {
     expect(findVehiclePreset("Honda", "CG 160", 2024)?.id).toBe("cg-160");
     expect(findVehiclePreset("Chevrolet", "Prisma 1.0", 2015)?.id).toBe("prisma-1-0-2015");
     expect(findVehiclePreset("Volkswagen", "Gol 1.5", 2016)?.id).toBe("gol-1-5-2016");
+    expect(findVehiclePreset("BMW", "G 310 GS", 2024)?.id).toBe("bmw-g310gs");
   });
 
   it("retorna referências de manutenção com peças e custo estimado", () => {
