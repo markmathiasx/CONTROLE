@@ -424,7 +424,7 @@ const motorcycleMaintenanceReferences: VehicleMaintenanceReference[] = [
   },
 ];
 
-const catalogYears = yearRange(2016, 2026);
+const catalogYears = yearRange(1998, 2026);
 
 interface CatalogVariantProfile {
   code: string;
@@ -599,8 +599,7 @@ function toYearScopedId(seedId: string, variantCode: string, year: number) {
 }
 
 function buildGeneratedCarPresetEntries(seed: VehiclePresetOption) {
-  const availableYears = seed.years.filter((year) => year >= 2016 && year <= 2026);
-  const years = availableYears.length > 0 ? availableYears : catalogYears;
+  const years = seed.years.length > 0 ? seed.years : catalogYears;
 
   const baseModel = sanitizeCarModelBase(seed.model) || seed.model;
   const baseDisplacement = extractCarDisplacement(seed);
@@ -658,8 +657,7 @@ function buildGeneratedCarPresetEntries(seed: VehiclePresetOption) {
 }
 
 function buildGeneratedMotoPresetEntries(seed: VehiclePresetOption) {
-  const availableYears = seed.years.filter((year) => year >= 2016 && year <= 2026);
-  const years = availableYears.length > 0 ? availableYears : catalogYears;
+  const years = seed.years.length > 0 ? seed.years : catalogYears;
 
   const baseCc = extractMotoCc(seed);
   const modelBase = seed.model.replace(/\s{2,}/g, " ").trim();
@@ -1854,8 +1852,8 @@ function toCoverageModelKey(model: Pick<VehicleCatalogCoverageModel, "brand" | "
 }
 
 function buildCoveragePreset(model: VehicleCatalogCoverageModel): VehiclePresetOption {
-  const yearStart = model.yearStart ?? 2016;
-  const yearEnd = model.yearEnd ?? 2026;
+  const yearStart = model.yearStart ?? 1998;
+  const yearEnd = model.yearEnd ?? new Date().getFullYear();
   const years = yearRange(yearStart, yearEnd);
   const id = `br-${normalizeSlugLabel(`${model.brand}-${model.model}`)}`;
 
@@ -1928,6 +1926,27 @@ function buildCoveragePreset(model: VehicleCatalogCoverageModel): VehiclePresetO
 }
 
 const additionalCarCoverageModels: VehicleCatalogCoverageModel[] = [
+  { brand: "Chevrolet", model: "Celta 1.0", vehicleType: "car", segment: "hatch", yearStart: 2000, yearEnd: 2016 },
+  { brand: "Chevrolet", model: "Classic 1.0", vehicleType: "car", segment: "sedan", yearStart: 2003, yearEnd: 2016 },
+  { brand: "Chevrolet", model: "Corsa Sedan 1.4", vehicleType: "car", segment: "sedan", yearStart: 1998, yearEnd: 2012 },
+  { brand: "Chevrolet", model: "Astra 2.0", vehicleType: "car", segment: "sedan", yearStart: 1999, yearEnd: 2011 },
+  { brand: "Chevrolet", model: "Vectra 2.0", vehicleType: "car", segment: "sedan", yearStart: 1998, yearEnd: 2011 },
+  { brand: "Fiat", model: "Palio 1.0", vehicleType: "car", segment: "hatch", yearStart: 1998, yearEnd: 2018 },
+  { brand: "Fiat", model: "Palio Weekend 1.4", vehicleType: "car", segment: "familiar", yearStart: 1999, yearEnd: 2020 },
+  { brand: "Fiat", model: "Siena 1.0", vehicleType: "car", segment: "sedan", yearStart: 1998, yearEnd: 2016 },
+  { brand: "Fiat", model: "Idea 1.4", vehicleType: "car", segment: "familiar", yearStart: 2006, yearEnd: 2016 },
+  { brand: "Volkswagen", model: "Gol 1.0 G2/G3/G4", vehicleType: "car", segment: "hatch", yearStart: 1998, yearEnd: 2014 },
+  { brand: "Volkswagen", model: "Parati 1.6", vehicleType: "car", segment: "familiar", yearStart: 1998, yearEnd: 2012 },
+  { brand: "Volkswagen", model: "Santana 2.0", vehicleType: "car", segment: "sedan", yearStart: 1998, yearEnd: 2006 },
+  { brand: "Ford", model: "Fiesta 1.0", vehicleType: "car", segment: "hatch", yearStart: 1998, yearEnd: 2019 },
+  { brand: "Ford", model: "Focus 2.0", vehicleType: "car", segment: "sedan", yearStart: 2001, yearEnd: 2019 },
+  { brand: "Ford", model: "EcoSport 2.0", vehicleType: "car", segment: "suv", yearStart: 2004, yearEnd: 2021 },
+  { brand: "Renault", model: "Clio 1.0", vehicleType: "car", segment: "hatch", yearStart: 1999, yearEnd: 2016 },
+  { brand: "Renault", model: "Symbol 1.6", vehicleType: "car", segment: "sedan", yearStart: 2009, yearEnd: 2013 },
+  { brand: "Toyota", model: "Corolla 1.8", vehicleType: "car", segment: "sedan", yearStart: 1999 },
+  { brand: "Honda", model: "Civic 1.8", vehicleType: "car", segment: "sedan", yearStart: 2001, yearEnd: 2021 },
+  { brand: "Honda", model: "Fit 1.4", vehicleType: "car", segment: "hatch", yearStart: 2004, yearEnd: 2021 },
+  { brand: "Nissan", model: "Tiida 1.8", vehicleType: "car", segment: "hatch", yearStart: 2008, yearEnd: 2013 },
   { brand: "Chevrolet", model: "Onix Joy 1.0", vehicleType: "car", segment: "hatch", yearStart: 2016, yearEnd: 2021 },
   { brand: "Chevrolet", model: "Onix RS 1.0 Turbo", vehicleType: "car", segment: "hatch", yearStart: 2021 },
   { brand: "Chevrolet", model: "Prisma 1.4", vehicleType: "car", segment: "sedan", yearStart: 2016, yearEnd: 2019 },
@@ -2009,6 +2028,20 @@ const additionalCarCoverageModels: VehicleCatalogCoverageModel[] = [
 ];
 
 const additionalMotoCoverageModels: VehicleCatalogCoverageModel[] = [
+  { brand: "Honda", model: "CG 125 Titan", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 1998, yearEnd: 2008 },
+  { brand: "Honda", model: "CG 150 Titan", vehicleType: "motorcycle", segment: "street", fuelType: "Flex", yearStart: 2004, yearEnd: 2015 },
+  { brand: "Honda", model: "Biz 100", vehicleType: "motorcycle", segment: "scooter", fuelType: "Gasolina", yearStart: 1998, yearEnd: 2005 },
+  { brand: "Honda", model: "CBX 250 Twister", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2001, yearEnd: 2008 },
+  { brand: "Honda", model: "XR 250 Tornado", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2001, yearEnd: 2008 },
+  { brand: "Honda", model: "Falcon 400", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 1999, yearEnd: 2015 },
+  { brand: "Yamaha", model: "YBR 125", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2000, yearEnd: 2016 },
+  { brand: "Yamaha", model: "XTZ 125", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2003, yearEnd: 2016 },
+  { brand: "Yamaha", model: "XT 660R", vehicleType: "motorcycle", segment: "trail", fuelType: "Gasolina", yearStart: 2005, yearEnd: 2018 },
+  { brand: "Yamaha", model: "Fazer 250 Blueflex", vehicleType: "motorcycle", segment: "street", fuelType: "Flex", yearStart: 2011, yearEnd: 2017 },
+  { brand: "Suzuki", model: "Yes 125", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2005, yearEnd: 2012 },
+  { brand: "Suzuki", model: "Intruder 125", vehicleType: "motorcycle", segment: "custom", fuelType: "Gasolina", yearStart: 2002, yearEnd: 2016 },
+  { brand: "Dafra", model: "Next 250", vehicleType: "motorcycle", segment: "street", fuelType: "Gasolina", yearStart: 2012, yearEnd: 2018 },
+  { brand: "Kasinski", model: "Comet 250", vehicleType: "motorcycle", segment: "sport", fuelType: "Gasolina", yearStart: 2005, yearEnd: 2013 },
   { brand: "Honda", model: "CG 160 Titan", vehicleType: "motorcycle", segment: "street", fuelType: "Flex", yearStart: 2016 },
   { brand: "Honda", model: "CG 160 Fan", vehicleType: "motorcycle", segment: "street", fuelType: "Flex", yearStart: 2016 },
   { brand: "Honda", model: "NXR Bros 160 ESDD", vehicleType: "motorcycle", segment: "trail", fuelType: "Flex", yearStart: 2016 },
@@ -2264,7 +2297,25 @@ export function getVehicleMaintenanceReferences(params?: {
   return inferredType === "car" ? carMaintenanceReferences : motorcycleMaintenanceReferences;
 }
 
-export const vehiclePresetYearOptions = yearRange(2016, 2026);
+const vehiclePresetYearBounds = vehiclePresetOptions.reduce(
+  (acc, preset) => {
+    for (const year of preset.years) {
+      if (year < acc.minYear) {
+        acc.minYear = year;
+      }
+      if (year > acc.maxYear) {
+        acc.maxYear = year;
+      }
+    }
+    return acc;
+  },
+  { minYear: new Date().getFullYear(), maxYear: new Date().getFullYear() },
+);
+
+export const vehiclePresetYearOptions = yearRange(
+  vehiclePresetYearBounds.minYear,
+  vehiclePresetYearBounds.maxYear,
+);
 
 function getFuelReferencePriceByType(fuelType: string) {
   const normalized = fuelType.trim().toLowerCase();

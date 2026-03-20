@@ -9,7 +9,7 @@ import {
 } from "@/lib/constants";
 
 describe("vehicle presets", () => {
-  it("lista presets populares de carros e motos com anos 2016+", () => {
+  it("lista presets populares de carros e motos com anos amplos", () => {
     const carPresets = vehiclePresetOptions.filter((item) => item.vehicleType === "car");
     const motorcyclePresets = vehiclePresetOptions.filter((item) => item.vehicleType === "motorcycle");
 
@@ -17,13 +17,13 @@ describe("vehicle presets", () => {
     expect(motorcyclePresets.length).toBeGreaterThanOrEqual(1000);
     expect(
       vehiclePresetOptions.some(
-        (item) => item.vehicleType === "car" && item.years.some((year) => year >= 2016),
+        (item) => item.vehicleType === "car" && item.years.some((year) => year >= 1998),
       ),
     ).toBe(true);
   });
 
-  it("cobre anos de 2016 a 2026 para carros e motos no catálogo", () => {
-    for (let year = 2016; year <= 2026; year += 1) {
+  it("cobre anos de 1998 a 2026 para carros e motos no catálogo", () => {
+    for (let year = 1998; year <= 2026; year += 1) {
       expect(
         vehiclePresetOptions.some((item) => item.vehicleType === "car" && item.years.includes(year)),
       ).toBe(true);
@@ -48,12 +48,15 @@ describe("vehicle presets", () => {
   });
 
   it("inclui cobertura ampliada de veículos populares nacionais e importados", () => {
+    expect(findVehiclePreset("Chevrolet", "Celta 1.0", 2000)?.id).toBe("br-chevrolet-celta-1-0");
+    expect(findVehiclePreset("Chevrolet", "Celta 1.0", 2016)?.id).toBe("br-chevrolet-celta-1-0");
     expect(findVehiclePreset("Chevrolet", "Prisma 1.4", 2018)?.id).toBe("br-chevrolet-prisma-1-4");
     expect(findVehiclePreset("Volkswagen", "Amarok V6 3.0 Diesel", 2025)?.id).toBe(
       "br-volkswagen-amarok-v6-3-0-diesel",
     );
     expect(findVehiclePreset("Honda", "CB 500F", 2022)?.id).toBe("br-honda-cb-500f");
     expect(findVehiclePreset("Triumph", "Speed 400", 2025)?.id).toBe("br-triumph-speed-400");
+    expect(findVehiclePreset("Honda", "CG 125 Titan", 1999)?.id).toBe("br-honda-cg-125-titan");
   });
 
   it("retorna referências de manutenção com peças e custo estimado", () => {
