@@ -22,6 +22,7 @@ import { MonthSwitcher } from "@/components/shared/month-switcher";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SummaryCard } from "@/components/shared/summary-card";
 import {
+  getVehiclePresetById,
   getVehiclePresetOptions,
   vehiclePresetYearOptions,
   vehicleTypeLabels,
@@ -85,6 +86,8 @@ function groupByMonth<T extends { date: string }>(items: T[]) {
 function FuelLogForm({
   value,
   vehicles,
+  quickPresetOptions,
+  onSelectPreset,
   onChange,
   onSubmit,
   submitLabel,
@@ -92,6 +95,8 @@ function FuelLogForm({
 }: {
   value: FuelFormState;
   vehicles: Array<{ id: string; nickname: string }>;
+  quickPresetOptions?: Array<{ id: string; label: string; vehicleType: "car" | "motorcycle" }>;
+  onSelectPreset?: (presetId: string) => void;
   onChange: React.Dispatch<React.SetStateAction<FuelFormState>>;
   onSubmit: () => void;
   submitLabel: string;
@@ -113,7 +118,13 @@ function FuelLogForm({
           <Label>Veículo</Label>
           <Select
             value={value.vehicleId}
-            onValueChange={(next) => onChange((current) => ({ ...current, vehicleId: next }))}
+            onValueChange={(next) => {
+              if (next.startsWith("preset:")) {
+                onSelectPreset?.(next.replace("preset:", ""));
+                return;
+              }
+              onChange((current) => ({ ...current, vehicleId: next }));
+            }}
           >
             <SelectTrigger>
               <SelectValue placeholder="Selecione o veículo" />
@@ -124,6 +135,18 @@ function FuelLogForm({
                   {vehicle.nickname}
                 </SelectItem>
               ))}
+              {quickPresetOptions?.length ? (
+                <>
+                  <div className="px-2 pb-1 pt-2 text-[10px] uppercase tracking-[0.22em] text-zinc-500">
+                    Adicionar do catálogo popular
+                  </div>
+                  {quickPresetOptions.map((preset) => (
+                    <SelectItem key={preset.id} value={`preset:${preset.id}`}>
+                      {`${vehicleTypeLabels[preset.vehicleType]} • ${preset.label}`}
+                    </SelectItem>
+                  ))}
+                </>
+              ) : null}
             </SelectContent>
           </Select>
         </div>
@@ -282,6 +305,14 @@ export function FuelPage() {
       }),
     [presetQuery, presetTypeFilter, presetYearFilter],
   );
+  const quickPresetOptions = React.useMemo(
+    () =>
+      getVehiclePresetOptions({
+        vehicleType: "all",
+        year: "all",
+      }).slice(0, 35),
+    [],
+  );
 
   React.useEffect(() => {
     setFilters((current) => ({ ...current, month: selectedMonth }));
@@ -311,10 +342,10 @@ export function FuelPage() {
   }
 
   function addVehicleFromPreset(presetId: string) {
-    const preset = filteredPresets.find((item) => item.id === presetId);
+    const preset = getVehiclePresetById(presetId);
     if (!preset) {
       toast.error("Preset não encontrado.");
-      return;
+      return null;
     }
 
     const currentYear = new Date().getFullYear();
@@ -375,6 +406,7 @@ export function FuelPage() {
     }));
     setPresetSheetOpen(false);
     toast.success(`${preset.label} adicionado aos seus veículos.`);
+    return vehicleId;
   }
 
   if (!snapshot.vehicles.length) {
@@ -606,6 +638,10 @@ export function FuelPage() {
           <FuelLogForm
             value={form}
             vehicles={vehicleOptions}
+            quickPresetOptions={quickPresetOptions}
+            onSelectPreset={(presetId) => {
+              addVehicleFromPreset(presetId);
+            }}
             onChange={setForm}
             onSubmit={() =>
               submitFuel(form, () =>
@@ -853,6 +889,7 @@ export function FuelPage() {
             <FuelLogForm
               value={editingForm}
               vehicles={vehicleOptions}
+              quickPresetOptions={[]}
               onChange={(updater) =>
                 setEditingForm((current) =>
                   typeof updater === "function" ? updater(current ?? initialForm) : updater,
