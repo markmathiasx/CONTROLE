@@ -1,4 +1,4 @@
-import { appVersion, schemaVersion, vehiclePresetOptions } from "@/lib/constants";
+import { appVersion, findVehiclePreset, schemaVersion } from "@/lib/constants";
 import { workspaceSnapshotSchema } from "@/lib/schemas";
 import { slugify } from "@/lib/utils";
 import type {
@@ -120,27 +120,6 @@ function makeCostCenter(
   };
 }
 
-function inferVehiclePreset(
-  brand: string,
-  model: string,
-  year: number,
-) {
-  const normalizedBrand = brand.toLowerCase();
-  const normalizedModel = model.toLowerCase();
-
-  return vehiclePresetOptions.find((preset) => {
-    if (!normalizedBrand.includes(preset.brand.toLowerCase())) {
-      return false;
-    }
-
-    if (!normalizedModel.includes(preset.model.toLowerCase().replace(/\s+/g, " "))) {
-      return false;
-    }
-
-    return preset.years.some((entry) => entry === year);
-  });
-}
-
 function normalizeVehicleFixedCostRule(
   rawRule: unknown,
   fallback?: {
@@ -178,7 +157,7 @@ function normalizeVehicle(rawVehicle: unknown, workspaceId: string, centerId: st
   const brand = typeof vehicle.brand === "string" && vehicle.brand ? vehicle.brand : "Honda";
   const model = typeof vehicle.model === "string" && vehicle.model ? vehicle.model : "CG 160";
   const year = typeof vehicle.year === "number" ? vehicle.year : 2021;
-  const preset = inferVehiclePreset(brand, model, year);
+  const preset = findVehiclePreset(brand, model, year);
   const rawFixedCosts = isRecord(vehicle.fixedCosts) ? vehicle.fixedCosts : {};
 
   return {

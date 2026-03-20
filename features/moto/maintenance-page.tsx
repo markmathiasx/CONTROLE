@@ -21,7 +21,12 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { MonthSwitcher } from "@/components/shared/month-switcher";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SummaryCard } from "@/components/shared/summary-card";
-import { maintenanceCategoryLabels, paymentMethodLabels } from "@/lib/constants";
+import {
+  findVehiclePreset,
+  getVehicleMaintenanceReferences,
+  maintenanceCategoryLabels,
+  paymentMethodLabels,
+} from "@/lib/constants";
 import { formatCurrencyBRL, formatDateBR } from "@/lib/formatters";
 import { formatMonthKey } from "@/lib/utils";
 import { useFinanceStore } from "@/store/use-finance-store";
@@ -344,6 +349,20 @@ export function MaintenancePage() {
   }));
   const selectedVehicle =
     snapshot.vehicles.find((vehicle) => vehicle.id === filters.vehicleId) ?? snapshot.vehicles[0];
+  const selectedVehiclePreset = findVehiclePreset(
+    selectedVehicle.brand,
+    selectedVehicle.model,
+    selectedVehicle.year,
+  );
+  const maintenanceTemplates = getVehicleMaintenanceReferences({
+    presetId: selectedVehiclePreset?.id,
+    vehicleType: selectedVehicle.vehicleType ?? "motorcycle",
+  });
+  const maintenanceTemplateSourceLabel = selectedVehiclePreset
+    ? selectedVehiclePreset.label
+    : (selectedVehicle.vehicleType ?? "motorcycle") === "car"
+      ? "Carro (genérico)"
+      : "Moto (genérico)";
   const scopedLogs = snapshot.maintenanceLogs.filter((item) => item.vehicleId === selectedVehicle.id);
   const filteredLogs = scopedLogs
     .filter((item) => formatMonthKey(item.date) === filters.month)
@@ -414,6 +433,30 @@ export function MaintenancePage() {
     afterSubmit?.();
   }
 
+  function applyMaintenanceTemplate(templateId: string) {
+    const template = maintenanceTemplates.find((item) => item.id === templateId);
+    if (!template) {
+      return;
+    }
+
+    const estimatedMidCost = (template.estimatedCostMin + template.estimatedCostMax) / 2;
+    setForm((current) => ({
+      ...current,
+      type: template.label,
+      category: template.category,
+      description: `${template.label} • ${selectedVehicle.nickname}`,
+      totalCost: String(Math.round(estimatedMidCost)),
+      recurringMonths: template.recommendedMonthsInterval
+        ? String(template.recommendedMonthsInterval)
+        : "",
+      recurringKm: template.recommendedKmInterval ? String(template.recommendedKmInterval) : "",
+      notes: `Peças: ${template.typicalParts.join(", ")}`,
+      vehicleId: selectedVehicle.id,
+      odometerKm: current.odometerKm || selectedVehicle.currentOdometerKm,
+    }));
+    toast.success("Template aplicado no formulário.");
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -465,7 +508,37 @@ export function MaintenancePage() {
         <CardHeader>
           <CardTitle>Nova manutenção</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-medium text-zinc-100">
+                Checklist rápido de peças e serviços
+              </p>
+              <Badge variant="muted">{maintenanceTemplateSourceLabel}</Badge>
+            </div>
+            <p className="mt-1 text-xs text-zinc-400">
+              Toque em um template para preencher tipo, categoria, faixa de custo e recorrência.
+            </p>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {maintenanceTemplates.slice(0, 8).map((template) => (
+                <button
+                  type="button"
+                  key={template.id}
+                  onClick={() => applyMaintenanceTemplate(template.id)}
+                  className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-left transition hover:border-violet-300/40 hover:bg-black/30"
+                >
+                  <p className="text-sm font-medium text-zinc-100">{template.label}</p>
+                  <p className="mt-1 text-xs text-zinc-400">
+                    {template.recommendedKmInterval ? `${template.recommendedKmInterval} km` : "km livre"}
+                    {template.recommendedMonthsInterval ? ` • ${template.recommendedMonthsInterval} meses` : ""}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {formatCurrencyBRL(template.estimatedCostMin)} a {formatCurrencyBRL(template.estimatedCostMax)}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </div>
           <MaintenanceForm
             value={form}
             vehicles={vehicleOptions}

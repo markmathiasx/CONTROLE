@@ -28,6 +28,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
+  findVehiclePreset,
+  getVehicleMaintenanceReferences,
+  getVehiclePresetById,
   themeLabels,
   vehicleFixedCostLabels,
   vehiclePresetOptions,
@@ -249,9 +252,22 @@ export function SettingsPage() {
     (sum, rule) => sum + (rule.enabled ? rule.amount : 0),
     0,
   );
+  const selectedVehiclePreset =
+    getVehiclePresetById(vehiclePresetId === "custom" ? undefined : vehiclePresetId) ??
+    findVehiclePreset(vehicleForm.brand, vehicleForm.model, vehicleForm.year);
+  const selectedVehiclePresetAnnualCost = selectedVehiclePreset
+    ? Object.values(selectedVehiclePreset.fixedCosts).reduce((sum, rule) => sum + (rule.enabled ? rule.amount : 0), 0)
+    : 0;
+  const selectedVehiclePresetYearsLabel = selectedVehiclePreset
+    ? `${selectedVehiclePreset.years[0]}-${selectedVehiclePreset.years[selectedVehiclePreset.years.length - 1]}`
+    : "";
+  const selectedVehiclePresetMaintenance = getVehicleMaintenanceReferences({
+    presetId: selectedVehiclePreset?.id,
+    vehicleType: vehicleForm.vehicleType,
+  });
 
   function startNewVehicle(presetId?: string) {
-    const preset = vehiclePresetOptions.find((item) => item.id === presetId);
+    const preset = getVehiclePresetById(presetId);
     const currentYear = new Date().getFullYear();
     const suggestedYear = preset
       ? preset.years.some((year) => year === currentYear)
@@ -1044,7 +1060,7 @@ export function SettingsPage() {
                       <SelectItem value="custom">Manual</SelectItem>
                       {vehiclePresetOptions.map((preset) => (
                         <SelectItem key={preset.id} value={preset.id}>
-                          {preset.label}
+                          {`${vehicleTypeLabels[preset.vehicleType]} • ${preset.label}`}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1054,6 +1070,59 @@ export function SettingsPage() {
                   <Plus className="size-4" />
                   Novo veículo
                 </Button>
+                {selectedVehiclePreset ? (
+                  <div className="mt-3 space-y-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-zinc-100">{selectedVehiclePreset.label}</p>
+                      <Badge variant="muted">
+                        {vehicleTypeLabels[selectedVehiclePreset.vehicleType]} • {selectedVehiclePresetYearsLabel}
+                      </Badge>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Consumo referência</p>
+                        <p className="mt-1 text-sm font-medium text-zinc-100">
+                          {selectedVehiclePreset.averageCityKmPerLiter} km/L cidade
+                          {" • "}
+                          {selectedVehiclePreset.averageHighwayKmPerLiter} km/L estrada
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/8 bg-white/4 px-3 py-2">
+                        <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">Fixos anuais base</p>
+                        <p className="mt-1 text-sm font-medium text-zinc-100">
+                          {formatCurrencyBRL(selectedVehiclePresetAnnualCost)}/ano
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">
+                        Peças e serviços sugeridos
+                      </p>
+                      <div className="space-y-2">
+                        {selectedVehiclePresetMaintenance.slice(0, 4).map((item) => (
+                          <div
+                            key={item.id}
+                            className="rounded-xl border border-white/8 bg-white/4 px-3 py-2"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-medium text-zinc-100">{item.label}</p>
+                              <p className="text-xs text-zinc-400">
+                                {item.recommendedKmInterval ? `${item.recommendedKmInterval} km` : "km livre"}
+                                {item.recommendedMonthsInterval
+                                  ? ` • ${item.recommendedMonthsInterval}m`
+                                  : ""}
+                              </p>
+                            </div>
+                            <p className="mt-1 text-xs text-zinc-400">
+                              {item.typicalParts.join(", ")} • {formatCurrencyBRL(item.estimatedCostMin)} a{" "}
+                              {formatCurrencyBRL(item.estimatedCostMax)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
