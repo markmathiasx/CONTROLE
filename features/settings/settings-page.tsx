@@ -30,9 +30,10 @@ import { Switch } from "@/components/ui/switch";
 import {
   estimateVehiclePresetCostProfile,
   findVehiclePreset,
+  getVehicleCatalogPresetOptions,
   getVehicleMaintenanceReferences,
-  getVehiclePresetOptions,
   getVehiclePresetById,
+  getVehiclePresetBrandOptions,
   themeLabels,
   vehicleFixedCostLabels,
   vehiclePresetYearOptions,
@@ -174,9 +175,8 @@ export function SettingsPage() {
   const [selectedVehicleId, setSelectedVehicleId] = React.useState("");
   const [vehiclePresetId, setVehiclePresetId] = React.useState("custom");
   const [vehiclePresetTypeFilter, setVehiclePresetTypeFilter] = React.useState<"all" | VehicleFormValues["vehicleType"]>("all");
-  const [vehiclePresetYearFilter, setVehiclePresetYearFilter] = React.useState<number | "all">(
-    new Date().getFullYear(),
-  );
+  const [vehiclePresetYearFilter, setVehiclePresetYearFilter] = React.useState<number | "all">("all");
+  const [vehiclePresetBrandFilter, setVehiclePresetBrandFilter] = React.useState<string | "all">("all");
   const [vehiclePresetQuery, setVehiclePresetQuery] = React.useState("");
   const [vehicleForm, setVehicleForm] = React.useState<VehicleFormValues>(() => toVehicleFormState());
   const [busyAction, setBusyAction] = React.useState<string | null>(null);
@@ -248,6 +248,31 @@ export function SettingsPage() {
     });
   }, [selectedVehicleId, snapshot]);
 
+  const filteredVehiclePresets = getVehicleCatalogPresetOptions({
+    vehicleType: vehiclePresetTypeFilter,
+    year: vehiclePresetYearFilter,
+    query: vehiclePresetQuery,
+    brand: vehiclePresetBrandFilter,
+  });
+  const filteredVehiclePresetBrands = React.useMemo(
+    () =>
+      getVehiclePresetBrandOptions({
+        vehicleType: vehiclePresetTypeFilter,
+        year: vehiclePresetYearFilter,
+        catalogOnly: true,
+      }),
+    [vehiclePresetTypeFilter, vehiclePresetYearFilter],
+  );
+
+  React.useEffect(() => {
+    if (vehiclePresetBrandFilter === "all") {
+      return;
+    }
+    if (!filteredVehiclePresetBrands.includes(vehiclePresetBrandFilter)) {
+      setVehiclePresetBrandFilter("all");
+    }
+  }, [filteredVehiclePresetBrands, vehiclePresetBrandFilter]);
+
   if (!initialized || !snapshot) {
     return <PageSkeleton cards={3} rows={4} />;
   }
@@ -262,11 +287,6 @@ export function SettingsPage() {
   const selectedVehiclePreset =
     getVehiclePresetById(vehiclePresetId === "custom" ? undefined : vehiclePresetId) ??
     findVehiclePreset(vehicleForm.brand, vehicleForm.model, vehicleForm.year);
-  const filteredVehiclePresets = getVehiclePresetOptions({
-    vehicleType: vehiclePresetTypeFilter,
-    year: vehiclePresetYearFilter,
-    query: vehiclePresetQuery,
-  });
   const selectedVehiclePresetAnnualCost = selectedVehiclePreset
     ? Object.values(selectedVehiclePreset.fixedCosts).reduce((sum, rule) => sum + (rule.enabled ? rule.amount : 0), 0)
     : 0;
@@ -1102,11 +1122,30 @@ export function SettingsPage() {
                     </Select>
                   </div>
                   <div className="space-y-2">
+                    <Label>Marca</Label>
+                    <Select
+                      value={vehiclePresetBrandFilter}
+                      onValueChange={(value) => setVehiclePresetBrandFilter(value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas as marcas</SelectItem>
+                        {filteredVehiclePresetBrands.map((brand) => (
+                          <SelectItem key={brand} value={brand}>
+                            {brand}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
                     <Label>Buscar modelo</Label>
                     <Input
                       value={vehiclePresetQuery}
                       onChange={(event) => setVehiclePresetQuery(event.target.value)}
-                      placeholder="Ex.: gol 1.0, cg 160, prisma..."
+                      placeholder="Ex.: celta, gol 1.0, cg 125, prisma..."
                     />
                   </div>
                   <div className="space-y-2">
@@ -1114,6 +1153,9 @@ export function SettingsPage() {
                       <Label htmlFor="vehicle-preset">Modelo sugerido</Label>
                       <Badge variant="muted">{filteredVehiclePresets.length} opção(ões)</Badge>
                     </div>
+                    <p className="text-xs text-zinc-500">
+                      O catálogo agora mistura modelos atuais e legados, do primeiro ao último ano de cada linha.
+                    </p>
                     <Select
                       value={vehiclePresetId}
                       onValueChange={(value) => {

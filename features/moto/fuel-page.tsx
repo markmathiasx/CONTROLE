@@ -22,8 +22,9 @@ import { MonthSwitcher } from "@/components/shared/month-switcher";
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SummaryCard } from "@/components/shared/summary-card";
 import {
+  getVehicleCatalogPresetOptions,
   getVehiclePresetById,
-  getVehiclePresetOptions,
+  getVehiclePresetBrandOptions,
   vehiclePresetYearOptions,
   vehicleTypeLabels,
   paymentMethodLabels,
@@ -288,7 +289,8 @@ export function FuelPage() {
   const [editingForm, setEditingForm] = React.useState<FuelFormState | null>(null);
   const [presetSheetOpen, setPresetSheetOpen] = React.useState(false);
   const [presetTypeFilter, setPresetTypeFilter] = React.useState<"all" | "car" | "motorcycle">("all");
-  const [presetYearFilter, setPresetYearFilter] = React.useState<number | "all">(new Date().getFullYear());
+  const [presetYearFilter, setPresetYearFilter] = React.useState<number | "all">("all");
+  const [presetBrandFilter, setPresetBrandFilter] = React.useState<string | "all">("all");
   const [presetQuery, setPresetQuery] = React.useState("");
   const [filters, setFilters] = React.useState<FuelFilters>({
     month: selectedMonth,
@@ -298,25 +300,44 @@ export function FuelPage() {
   });
   const filteredPresets = React.useMemo(
     () =>
-      getVehiclePresetOptions({
+      getVehicleCatalogPresetOptions({
         vehicleType: presetTypeFilter,
         year: presetYearFilter,
         query: presetQuery,
+        brand: presetBrandFilter,
       }),
-    [presetQuery, presetTypeFilter, presetYearFilter],
+    [presetBrandFilter, presetQuery, presetTypeFilter, presetYearFilter],
+  );
+  const presetBrandOptions = React.useMemo(
+    () =>
+      getVehiclePresetBrandOptions({
+        vehicleType: presetTypeFilter,
+        year: presetYearFilter,
+        catalogOnly: true,
+      }),
+    [presetTypeFilter, presetYearFilter],
   );
   const quickPresetOptions = React.useMemo(
     () =>
-      getVehiclePresetOptions({
+      getVehicleCatalogPresetOptions({
         vehicleType: "all",
         year: "all",
-      }).slice(0, 35),
+      }).slice(0, 80),
     [],
   );
 
   React.useEffect(() => {
     setFilters((current) => ({ ...current, month: selectedMonth }));
   }, [selectedMonth]);
+
+  React.useEffect(() => {
+    if (presetBrandFilter === "all") {
+      return;
+    }
+    if (!presetBrandOptions.includes(presetBrandFilter)) {
+      setPresetBrandFilter("all");
+    }
+  }, [presetBrandFilter, presetBrandOptions]);
 
   React.useEffect(() => {
     if (!snapshot?.vehicles.length) {
@@ -424,13 +445,13 @@ export function FuelPage() {
         <Sheet open={presetSheetOpen} onOpenChange={setPresetSheetOpen}>
           <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto">
             <SheetHeader>
-              <SheetTitle>Catálogo popular 2016-2026</SheetTitle>
+              <SheetTitle>Catálogo de veículos 1999-2026+</SheetTitle>
               <SheetDescription>
-                Adicione rapidamente carros e motos populares para começar a registrar custos.
+                Adicione carros e motos do primeiro ao último ano de cada linha, incluindo modelos legados e atuais.
               </SheetDescription>
             </SheetHeader>
             <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-3">
+              <div className="grid gap-3 md:grid-cols-4">
                 <div className="space-y-2">
                   <Label>Tipo</Label>
                   <Select
@@ -469,16 +490,39 @@ export function FuelPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Marca</Label>
+                  <Select
+                    value={presetBrandFilter}
+                    onValueChange={(value) => setPresetBrandFilter(value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas as marcas</SelectItem>
+                      {presetBrandOptions.map((brand) => (
+                        <SelectItem key={brand} value={brand}>
+                          {brand}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label>Busca</Label>
                   <Input
                     value={presetQuery}
                     onChange={(event) => setPresetQuery(event.target.value)}
-                    placeholder="Ex.: cg, gol, hb20..."
+                    placeholder="Ex.: celta, cg 125, gol, hb20..."
                   />
                 </div>
               </div>
+              <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.24em] text-zinc-500">
+                <span>{filteredPresets.length} modelos encontrados</span>
+                <span>mostrando até 120</span>
+              </div>
               <div className="space-y-2">
-                {filteredPresets.slice(0, 30).map((preset) => (
+                {filteredPresets.slice(0, 120).map((preset) => (
                   <button
                     key={preset.id}
                     type="button"
@@ -661,13 +705,13 @@ export function FuelPage() {
       <Sheet open={presetSheetOpen} onOpenChange={setPresetSheetOpen}>
         <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>Catálogo popular 2016-2026</SheetTitle>
+            <SheetTitle>Catálogo de veículos 1999-2026+</SheetTitle>
             <SheetDescription>
-              Inclui carros nacionais e motos Honda/Yamaha/BMW para acelerar seu setup.
+              Inclui linhas legadas e atuais para você achar do Celta antigo até motos premium e atuais.
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-3">
+            <div className="grid gap-3 md:grid-cols-4">
               <div className="space-y-2">
                 <Label>Tipo</Label>
                 <Select
@@ -704,16 +748,39 @@ export function FuelPage() {
                 </Select>
               </div>
               <div className="space-y-2">
+                <Label>Marca</Label>
+                <Select
+                  value={presetBrandFilter}
+                  onValueChange={(value) => setPresetBrandFilter(value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as marcas</SelectItem>
+                    {presetBrandOptions.map((brand) => (
+                      <SelectItem key={brand} value={brand}>
+                        {brand}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label>Busca</Label>
                 <Input
                   value={presetQuery}
                   onChange={(event) => setPresetQuery(event.target.value)}
-                  placeholder="Ex.: cg, gol, hb20..."
+                  placeholder="Ex.: celta, cg 125, gol, hb20..."
                 />
               </div>
             </div>
+            <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-[0.24em] text-zinc-500">
+              <span>{filteredPresets.length} modelos encontrados</span>
+              <span>mostrando até 120</span>
+            </div>
             <div className="space-y-2">
-              {filteredPresets.slice(0, 40).map((preset) => (
+              {filteredPresets.slice(0, 120).map((preset) => (
                 <button
                   key={preset.id}
                   type="button"

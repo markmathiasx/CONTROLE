@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   estimateVehiclePresetCostProfile,
   findVehiclePreset,
+  getVehicleCatalogPresetOptions,
   getVehicleMaintenanceReferences,
+  getVehiclePresetBrandOptions,
   getVehiclePresetOptions,
   vehiclePresetOptions,
 } from "@/lib/constants";
@@ -57,6 +59,18 @@ describe("vehicle presets", () => {
     expect(findVehiclePreset("Honda", "CB 500F", 2022)?.id).toBe("br-honda-cb-500f");
     expect(findVehiclePreset("Triumph", "Speed 400", 2025)?.id).toBe("br-triumph-speed-400");
     expect(findVehiclePreset("Honda", "CG 125 Titan", 1999)?.id).toBe("br-honda-cg-125-titan");
+  });
+
+  it("expõe catálogo familiar sem esconder modelos legados por padrão", () => {
+    const familyCatalog = getVehicleCatalogPresetOptions({ vehicleType: "all", year: "all" });
+    const brands = getVehiclePresetBrandOptions({ vehicleType: "all", year: "all", catalogOnly: true });
+
+    expect(familyCatalog.some((item) => item.id === "br-chevrolet-celta-1-0")).toBe(true);
+    expect(familyCatalog.some((item) => item.id === "br-honda-cg-125-titan")).toBe(true);
+    expect(familyCatalog.some((item) => item.brand === "Harley-Davidson")).toBe(true);
+    expect(brands).toContain("Chevrolet");
+    expect(brands).toContain("Honda");
+    expect(brands).toContain("Harley-Davidson");
   });
 
   it("retorna referências de manutenção com peças e custo estimado", () => {
