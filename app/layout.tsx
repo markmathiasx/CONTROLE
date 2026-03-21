@@ -18,9 +18,9 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: `${appName} • Hub financeiro, automóvel e loja`,
+  title: `${appName} • Hub financeiro e automóvel`,
   description:
-    "PWA mobile-first para controlar finanças, operação do automóvel e produção da loja 3D em um só lugar.",
+    "PWA mobile-first para controlar finanças e operação do automóvel em um só lugar.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

@@ -209,7 +209,7 @@ export function TransactionsPage() {
           icon={Link2}
           label="Itens vinculados"
           value={`${linkedCount}`}
-          detail="Automóvel, loja e automações com origem travada"
+          detail="Automóvel e automações com origem travada"
           accent="from-cyan-400/20 via-cyan-500/10 to-transparent"
         />
         <SummaryCard
@@ -313,7 +313,6 @@ export function TransactionsPage() {
                   <SelectItem value="all">Todas</SelectItem>
                   <SelectItem value="finance">Financeiro</SelectItem>
                   <SelectItem value="moto">Automóvel</SelectItem>
-                  <SelectItem value="store">Loja</SelectItem>
                 </SelectContent>
               </Select>
             </div>

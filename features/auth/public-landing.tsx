@@ -25,11 +25,11 @@ export function PublicLanding() {
           </div>
           <div className="space-y-4">
             <h1 className="max-w-3xl font-heading text-4xl font-semibold leading-tight text-zinc-50 sm:text-5xl">
-              Seu hub financeiro, do automóvel e da loja com a mesma conta no celular e no PC.
+              Seu hub financeiro e do automóvel com a mesma conta no celular e no PC.
             </h1>
             <p className="max-w-2xl text-base text-zinc-400 sm:text-lg">
-              Entre com sua conta para sincronizar finanças, produção, estoque e operação do automóvel
-              em tempo real, sem perder o fallback local quando precisar.
+              Entre com sua conta para sincronizar finanças e operação do automóvel em tempo real,
+              sem perder o fallback local quando precisar.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">

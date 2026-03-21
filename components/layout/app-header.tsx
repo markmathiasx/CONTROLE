@@ -11,7 +11,6 @@ import {
   LoaderCircle,
   LockKeyhole,
   LogOut,
-  Printer,
   RefreshCw,
   Sparkles,
   Users,
@@ -41,11 +40,6 @@ const pageTitles: Record<string, string> = {
   "/moto": "Dashboard do automóvel",
   "/moto/abastecimentos": "Abastecimentos",
   "/moto/manutencoes": "Manutenções",
-  "/loja": "Dashboard da loja",
-  "/loja/catalogo": "Catálogo da loja",
-  "/loja/estoque": "Estoque da loja",
-  "/loja/producao": "Produção 3D",
-  "/loja/pedidos": "Pedidos da loja",
   "/transacoes": "Transações",
   "/transacoes/nova": "Novo lançamento",
   "/cartoes": "Cartões",
@@ -84,7 +78,7 @@ export function AppHeader() {
   const navPills = [
     { href: "/financeiro", label: "Financeiro", icon: Wallet },
     { href: "/moto", label: "Veículos", icon: Bike },
-    { href: "/loja", label: "Loja", icon: Printer },
+    { href: "/relatorios", label: "Relatórios", icon: Sparkles },
   ] as const;
 
   const activeWorkspace =

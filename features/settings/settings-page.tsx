@@ -516,11 +516,11 @@ export function SettingsPage() {
 
             <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <p className="font-medium text-zinc-50">Tema e operação</p>
+                <p className="font-medium text-zinc-50">Tema e planejamento</p>
                 <Badge variant="muted">{themeLabels[form.theme]}</Badge>
               </div>
               <p className="mt-1">
-                Energia a {form.operationalSettings.energyRatePerKwh}/kWh e {form.operationalSettings.printerPowerWatts}W na impressora.
+                Salário em {formatCurrencyBRL(form.salaryMonthly)}, VR em {formatCurrencyBRL(form.vrMonthly)} e tema {themeLabels[form.theme].toLowerCase()}.
               </p>
             </div>
           </CardContent>
@@ -544,9 +544,9 @@ export function SettingsPage() {
               </p>
             </div>
             <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-              <p className="font-medium text-zinc-50">3. Revise energia, custo manual e VR mensal</p>
+              <p className="font-medium text-zinc-50">3. Revise salário, VR e metas do automóvel</p>
               <p className="mt-1">
-                Esses números mudam bastante a leitura de lucro da loja e o saldo projetado do mês.
+                Esses números mudam bastante a leitura do saldo projetado, das reservas mensais e da pressão do mês.
               </p>
             </div>
           </CardContent>
@@ -828,7 +828,7 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Parâmetros financeiros e operacionais</CardTitle>
+          <CardTitle>Parâmetros financeiros</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
@@ -898,81 +898,6 @@ export function SettingsPage() {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="energy-rate">Tarifa de energia por kWh</Label>
-            <Input
-              id="energy-rate"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              value={form.operationalSettings.energyRatePerKwh}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  operationalSettings: {
-                    ...current.operationalSettings,
-                    energyRatePerKwh: Number(event.target.value),
-                  },
-                }))
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="printer-power">Potência média da impressora (W)</Label>
-            <Input
-              id="printer-power"
-              type="number"
-              inputMode="numeric"
-              value={form.operationalSettings.printerPowerWatts}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  operationalSettings: {
-                    ...current.operationalSettings,
-                    printerPowerWatts: Number(event.target.value),
-                  },
-                }))
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="extra-fixed">Custo fixo extra por produção</Label>
-            <Input
-              id="extra-fixed"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              value={form.operationalSettings.extraFixedCostPerProduction}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  operationalSettings: {
-                    ...current.operationalSettings,
-                    extraFixedCostPerProduction: Number(event.target.value),
-                  },
-                }))
-              }
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="manual-hourly">Custo manual por hora</Label>
-            <Input
-              id="manual-hourly"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              value={form.operationalSettings.manualLaborRatePerHour}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  operationalSettings: {
-                    ...current.operationalSettings,
-                    manualLaborRatePerHour: Number(event.target.value),
-                  },
-                }))
-              }
-            />
           </div>
           <div className="md:col-span-2">
             <Button

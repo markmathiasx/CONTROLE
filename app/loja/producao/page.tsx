@@ -1,5 +1,5 @@
-import { ProductionPage } from "@/features/store/production-page";
+import { redirect } from "next/navigation";
 
 export default function LojaProducaoPage() {
-  return <ProductionPage />;
+  redirect("/financeiro");
 }

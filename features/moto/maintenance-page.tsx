@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { CalendarClock, Route, ShieldAlert, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
@@ -333,11 +334,18 @@ export function MaintenancePage() {
 
   if (!snapshot.vehicles.length) {
     return (
-      <EmptyState
-        icon={Wrench}
-        title="Cadastre um veículo primeiro"
-        description="As manutenções precisam de um carro ou moto associado para gerar lembretes e custo real."
-      />
+      <div className="space-y-4">
+        <EmptyState
+          icon={Wrench}
+          title="Cadastre um veículo primeiro"
+          description="As manutenções precisam de um carro ou moto associado para gerar lembretes e custo real."
+        />
+        <Button asChild className="w-full rounded-2xl">
+          <Link href="/configuracoes" prefetch={false}>
+            Abrir catálogo de veículos
+          </Link>
+        </Button>
+      </div>
     );
   }
 

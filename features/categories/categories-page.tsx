@@ -104,7 +104,6 @@ export function CategoriesPage() {
                 <SelectItem value="finance">Financeiro</SelectItem>
                 <SelectItem value="shared">Compartilhado</SelectItem>
                 <SelectItem value="moto">Automóvel</SelectItem>
-                <SelectItem value="store">Loja</SelectItem>
               </SelectContent>
             </Select>
           </div>

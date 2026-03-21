@@ -1,13 +1,13 @@
 # Controle Financeiro MMSVH
 
-Hub pessoal em `pt-BR` para `Financeiro`, `Moto` e `Loja`, agora com autenticação real por Supabase Auth, sincronização em nuvem por workspace e fallback local preservado. O app continua mobile-first, PWA e pronto para uso no celular e no desktop com a mesma conta.
+Hub pessoal em `pt-BR` para `Financeiro` e `Automóvel`, agora com autenticação real por Supabase Auth, sincronização em nuvem por workspace e fallback local preservado. O app continua mobile-first, PWA e pronto para uso no celular e no desktop com a mesma conta.
 
 ## O que existe no app
 
-- `Resumo`: hub consolidado com visão geral dos 3 módulos
+- `Resumo`: hub consolidado com visão geral do financeiro e do automóvel
 - `Financeiro`: saldo do mês, VR, cartão, parcelas, transações, categorias, orçamentos e relatórios
 - `Moto`: abastecimentos, manutenções, custo mensal e próximos cuidados
-- `Loja`: catálogo com carrinho, estoque de filamentos/insumos, produção, pedidos e lucro operacional
+- `Loja`: base antiga preservada no snapshot, mas removida da navegação principal da versão atual
 - `Auth + Cloud`: login, cadastro, logout, sessão persistente, rotas protegidas, cache local e sync por workspace
 - `IA opcional`: leitura financeira comentada no relatório, server-side only, sem chave no client
 

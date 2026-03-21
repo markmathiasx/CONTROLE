@@ -8,10 +8,8 @@ import {
   AlertTriangle,
   ArrowRight,
   Bike,
-  Boxes,
   CreditCard,
   PiggyBank,
-  Printer,
   ShieldCheck,
   Wallet,
   Wrench,
@@ -20,7 +18,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -49,7 +46,6 @@ import { useFinanceStore } from "@/store/use-finance-store";
 import {
   getConsolidatedMonthlyTrend,
   getHubExecutiveSummary,
-  getStoreMonthlyTrend,
 } from "@/utils/finance";
 
 function moduleTone(value: number, inverse = false) {
@@ -111,7 +107,6 @@ export function HubPage() {
     [selectedMonth, selectedVehicle?.id, snapshot],
   );
   const consolidatedTrend = React.useMemo(() => (snapshot ? getConsolidatedMonthlyTrend(snapshot, 6) : []), [snapshot]);
-  const storeTrend = React.useMemo(() => (snapshot ? getStoreMonthlyTrend(snapshot, 6) : []), [snapshot]);
   const motoModuleHref = React.useMemo(() => {
     const query = mergeSearchParams(new URLSearchParams(), {
       vehicle: selectedVehicle?.id ?? null,
@@ -158,8 +153,8 @@ export function HubPage() {
               O que mais importa está visível em segundos.
             </h1>
             <p className="max-w-3xl text-sm leading-6 text-zinc-400 sm:text-base">
-              Use este painel como centro de comando: saldo, pressão do cartão, custo do automóvel, lucro
-              da loja, alertas e atalhos para agir rápido no celular ou no desktop.
+              Use este painel como centro de comando: saldo, pressão do cartão, custo do automóvel,
+              alertas e atalhos para agir rápido no celular ou no desktop.
             </p>
           </div>
         </div>
@@ -209,14 +204,14 @@ export function HubPage() {
           badge={{ text: "Automóvel", tone: moduleTone(executive.comparisons.motoCost.delta, true) }}
         />
         <SummaryCard
-          icon={Printer}
-          label="Lucro da loja"
-          value={formatCurrencyBRL(executive.store.grossProfit)}
-          detail={`Faturamento: ${formatCurrencyBRL(executive.store.revenue)}`}
+          icon={Wrench}
+          label="Reserva do automóvel"
+          value={formatCurrencyBRL(executive.moto.monthlyReserveTarget)}
+          detail={`${executive.moto.reminders.length} cuidado(s) ativos`}
           accent="from-cyan-400/20 via-cyan-500/10 to-transparent"
           badge={{
-            text: executive.store.grossProfit < 0 ? "Prejuízo" : "Loja",
-            tone: executive.store.grossProfit < 0 ? "danger" : "default",
+            text: executive.moto.reminders.some((item) => item.isOverdue) ? "Atenção" : "Reserva",
+            tone: executive.moto.reminders.some((item) => item.isOverdue) ? "warning" : "default",
           }}
         />
         <SummaryCard
@@ -249,15 +244,15 @@ export function HubPage() {
                 </p>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Pedidos abertos</p>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Veículos</p>
                 <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
-                  {executive.pulse.openOrders}
+                  {snapshot.vehicles.length}
                 </p>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Estoque crítico</p>
+                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Cuidados</p>
                 <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
-                  {executive.pulse.criticalStockCount}
+                  {executive.moto.reminders.length}
                 </p>
               </div>
             </div>
@@ -342,15 +337,15 @@ export function HubPage() {
           accent="from-amber-400/20 via-amber-500/10 to-transparent"
         />
         <QuickLinkCard
-          href="/loja/catalogo"
-          icon={Printer}
-          title="Abrir catálogo da loja"
-          description="Curadoria pronta para venda com filtros, quick view e carrinho."
+          href="/moto/manutencoes"
+          icon={Wrench}
+          title="Abrir cuidados do automóvel"
+          description="Ver timeline de serviços, recorrências e pendências do veículo."
           accent="from-cyan-400/20 via-cyan-500/10 to-transparent"
         />
         <QuickLinkCard
           href={reportsHref}
-          icon={Boxes}
+          icon={ShieldCheck}
           title="Abrir relatórios"
           description="Ir direto para o fechamento consolidado no escopo atual."
           accent="from-violet-400/20 via-violet-500/10 to-transparent"
@@ -448,37 +443,37 @@ export function HubPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Loja</CardTitle>
+            <CardTitle>Fechamento</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <p className="text-sm text-zinc-400">Lucro bruto entregue</p>
+              <p className="text-sm text-zinc-400">Saldo consolidado do período</p>
               <p className="font-heading text-3xl font-semibold text-zinc-50">
-                {formatCurrencyBRL(executive.store.grossProfit)}
+                {formatCurrencyBRL(executive.finance.consolidated.net)}
               </p>
               <DeltaPill
-                delta={executive.comparisons.storeProfit.delta}
+                delta={executive.comparisons.financeProjectedBalance.delta}
                 goodWhenPositive
-                text={`${executive.comparisons.storeProfit.delta >= 0 ? "+" : ""}${formatCompactCurrencyBRL(
-                  executive.comparisons.storeProfit.delta,
+                text={`${executive.comparisons.financeProjectedBalance.delta >= 0 ? "+" : ""}${formatCompactCurrencyBRL(
+                  executive.comparisons.financeProjectedBalance.delta,
                 )} vs mês anterior`}
               />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Pedidos</p>
-                <p className="mt-2 font-semibold text-zinc-50">{executive.store.openOrders}</p>
+                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Alertas</p>
+                <p className="mt-2 font-semibold text-zinc-50">{executive.pulse.alertCount}</p>
               </div>
               <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Estoque crítico</p>
+                <p className="text-xs uppercase tracking-[0.22em] text-zinc-500">Próximos itens</p>
                 <p className="mt-2 font-semibold text-zinc-50">
-                  {executive.store.criticalStockCount}
+                  {executive.upcoming.length}
                 </p>
               </div>
             </div>
             <Button asChild className="w-full justify-between rounded-2xl">
-              <Link href="/loja" prefetch={false}>
-                Abrir módulo da loja
+              <Link href={reportsHref} prefetch={false}>
+                Abrir fechamento e relatórios
                 <ArrowRight className="size-4" />
               </Link>
             </Button>
@@ -486,91 +481,58 @@ export function HubPage() {
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <ChartCard
-          title="Lucro e faturamento da loja"
-          description="Leitura rápida do que a operação está entregando mês a mês."
-        >
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={storeTrend.map((item) => ({
-                  month: formatMonthShortLabel(item.month),
-                  faturamento: item.revenue,
-                  lucro: item.profit,
-                }))}
-              >
-                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                <XAxis dataKey="month" stroke="#71717a" />
-                <YAxis stroke="#71717a" />
-                <Tooltip />
-                <Bar dataKey="faturamento" fill="#06b6d4" radius={[14, 14, 0, 0]} />
-                <Bar dataKey="lucro" radius={[14, 14, 0, 0]}>
-                  {storeTrend.map((item) => (
-                    <Cell
-                      key={item.month}
-                      fill={item.profit >= 0 ? "#10b981" : "#f43f5e"}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </ChartCard>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Próximas entregas e cuidados</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {executive.moto.reminders.length || executive.pulse.upcomingDueCount ? (
-              <>
-                {executive.moto.reminders.slice(0, 3).map((reminder) => (
-                  <div
-                    key={reminder.id}
-                    className="flex items-start justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <Wrench className="size-4 text-amber-300" />
-                        <p className="text-sm font-medium text-zinc-100">{reminder.title}</p>
-                      </div>
-                      <p className="text-sm text-zinc-400">
-                        {reminder.dueDate ? formatDateBR(reminder.dueDate) : "Sem data"}{" "}
-                        {reminder.dueKm ? `• ${reminder.dueKm} km` : ""}
-                      </p>
+      <Card>
+        <CardHeader>
+          <CardTitle>Próximos vencimentos e cuidados</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {executive.moto.reminders.length || executive.pulse.upcomingDueCount ? (
+            <>
+              {executive.moto.reminders.slice(0, 3).map((reminder) => (
+                <div
+                  key={reminder.id}
+                  className="flex items-start justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Wrench className="size-4 text-amber-300" />
+                      <p className="text-sm font-medium text-zinc-100">{reminder.title}</p>
                     </div>
-                    <Badge variant={reminder.isOverdue ? "danger" : "warning"}>
-                      {reminder.isOverdue ? "Atrasado" : "Próximo"}
-                    </Badge>
+                    <p className="text-sm text-zinc-400">
+                      {reminder.dueDate ? formatDateBR(reminder.dueDate) : "Sem data"}{" "}
+                      {reminder.dueKm ? `• ${reminder.dueKm} km` : ""}
+                    </p>
                   </div>
-                ))}
-                {executive.upcoming.slice(0, 2).map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex items-start justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <CreditCard className="size-4 text-cyan-300" />
-                        <p className="text-sm font-medium text-zinc-100">{item.description}</p>
-                      </div>
-                      <p className="text-sm text-zinc-400">{formatDateBR(item.date)}</p>
+                  <Badge variant={reminder.isOverdue ? "danger" : "warning"}>
+                    {reminder.isOverdue ? "Atrasado" : "Próximo"}
+                  </Badge>
+                </div>
+              ))}
+              {executive.upcoming.slice(0, 2).map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-start justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CreditCard className="size-4 text-cyan-300" />
+                      <p className="text-sm font-medium text-zinc-100">{item.description}</p>
                     </div>
-                    <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.amount)}</p>
+                    <p className="text-sm text-zinc-400">{formatDateBR(item.date)}</p>
                   </div>
-                ))}
-              </>
-            ) : (
-              <EmptyState
-                icon={ShieldCheck}
-                title="Sem pressão imediata"
-                description="As próximas entregas, vencimentos e cuidados vão aparecer aqui assim que exigirem atenção."
-              />
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                  <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.amount)}</p>
+                </div>
+              ))}
+            </>
+          ) : (
+            <EmptyState
+              icon={ShieldCheck}
+              title="Sem pressão imediata"
+              description="As próximas parcelas, vencimentos e cuidados do automóvel vão aparecer aqui assim que exigirem atenção."
+            />
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

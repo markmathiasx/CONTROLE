@@ -152,7 +152,7 @@ export function AuthOnboardingDialog() {
                 <div className="space-y-1">
                   <p className="font-medium text-zinc-50">Dados locais encontrados neste aparelho</p>
                   <p className="text-sm leading-6 text-zinc-300">
-                    Você pode mesclar transações, moto, loja e configurações relevantes com sua
+                    Você pode mesclar transações, automóvel e configurações relevantes com sua
                     conta agora. O sistema tenta evitar duplicações grosseiras.
                   </p>
                 </div>

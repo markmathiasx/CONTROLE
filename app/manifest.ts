@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: appName,
     short_name: appName,
     description:
-      "Hub mobile-first para finanças, operação do automóvel e produção da loja 3D, com uso rápido no celular.",
+      "Hub mobile-first para finanças e operação do automóvel, com uso rápido no celular e no desktop.",
     start_url: "/",
     scope: "/",
     display: "standalone",
@@ -50,10 +50,10 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icon?size=192", sizes: "192x192", type: "image/png" }],
       },
       {
-        name: "Loja",
-        short_name: "Loja",
-        description: "Abrir o painel da loja",
-        url: "/loja",
+        name: "Abastecimentos",
+        short_name: "Combustível",
+        description: "Registrar combustível com cálculo automático",
+        url: "/moto/abastecimentos",
         icons: [{ src: "/icon?size=192", sizes: "192x192", type: "image/png" }],
       },
       {

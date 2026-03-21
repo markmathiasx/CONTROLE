@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Box, ClipboardList, Fuel, PackagePlus, Plus, Printer, Sparkles, Wrench } from "lucide-react";
+import { ClipboardList, Fuel, Plus, Settings2, Sparkles, Wrench } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,11 +13,9 @@ const quickActions = [
   { href: null, label: "Gasto / receita", icon: Sparkles, action: "quick-add" },
   { href: "/moto/abastecimentos", label: "Abastecimento", icon: Fuel, action: "link" },
   { href: "/moto/manutencoes", label: "Manutenção", icon: Wrench, action: "link" },
-  { href: "/loja/catalogo", label: "Catálogo", icon: Sparkles, action: "link" },
-  { href: "/loja/estoque", label: "Comprar filamento", icon: PackagePlus, action: "link" },
-  { href: "/loja/estoque", label: "Novo insumo", icon: Box, action: "link" },
-  { href: "/loja/producao", label: "Produção", icon: Printer, action: "link" },
-  { href: "/loja/pedidos", label: "Pedido", icon: ClipboardList, action: "link" },
+  { href: "/transacoes", label: "Transações", icon: ClipboardList, action: "link" },
+  { href: "/relatorios", label: "Relatórios", icon: Sparkles, action: "link" },
+  { href: "/configuracoes", label: "Veículos e ajustes", icon: Settings2, action: "link" },
 ] as const;
 
 export function FloatingActionButton() {

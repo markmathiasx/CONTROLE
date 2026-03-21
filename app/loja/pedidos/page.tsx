@@ -1,5 +1,5 @@
-import { OrdersPage } from "@/features/store/orders-page";
+import { redirect } from "next/navigation";
 
 export default function LojaPedidosPage() {
-  return <OrdersPage />;
+  redirect("/financeiro");
 }

@@ -1,5 +1,5 @@
-import { StockPage } from "@/features/store/stock-page";
+import { redirect } from "next/navigation";
 
 export default function LojaEstoquePage() {
-  return <StockPage />;
+  redirect("/financeiro");
 }

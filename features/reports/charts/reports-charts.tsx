@@ -164,7 +164,7 @@ export function ReportsStoreCostBreakdownBarChart({
 export function ReportsConsolidatedByModuleBarChart({
   data,
 }: {
-  data: Array<{ month: string; pessoal: number; moto: number; loja: number }>;
+  data: Array<{ month: string; pessoal: number; automovel: number; saldo: number }>;
 }) {
   return (
     <ResponsiveContainer width="100%" height="100%">
@@ -173,8 +173,8 @@ export function ReportsConsolidatedByModuleBarChart({
         <YAxis stroke="#71717a" />
         <Tooltip />
         <Bar dataKey="pessoal" stackId="a" fill="#06b6d4" radius={[14, 14, 0, 0]} />
-        <Bar dataKey="moto" stackId="a" fill="#f59e0b" radius={[14, 14, 0, 0]} />
-        <Bar dataKey="loja" stackId="a" fill="#10b981" radius={[14, 14, 0, 0]} />
+        <Bar dataKey="automovel" stackId="a" fill="#f59e0b" radius={[14, 14, 0, 0]} />
+        <Bar dataKey="saldo" stackId="a" fill="#10b981" radius={[14, 14, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   );

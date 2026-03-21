@@ -1,5 +1,5 @@
-import { CatalogPage } from "@/features/store/catalog-page";
+import { redirect } from "next/navigation";
 
 export default function LojaCatalogoPage() {
-  return <CatalogPage />;
+  redirect("/financeiro");
 }

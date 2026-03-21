@@ -13,7 +13,7 @@ import type {
 
 export const appName = "Controle Financeiro MMSVH";
 export const schemaVersion = 3;
-export const appVersion = "0.3.0";
+export const appVersion = "0.3.1";
 
 export const paymentMethodLabels: Record<PaymentMethod, string> = {
   cash: "Dinheiro",

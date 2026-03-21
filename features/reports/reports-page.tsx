@@ -5,7 +5,7 @@ import type { Route } from "next";
 import { getYear, parseISO } from "date-fns";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Repeat, Sparkles, TrendingUp, Wallet, Wrench, Zap } from "lucide-react";
+import { Repeat, Sparkles, TrendingUp, Wallet, Wrench } from "lucide-react";
 
 import { ChartCard } from "@/components/shared/chart-card";
 import { DeltaPill } from "@/components/shared/delta-pill";
@@ -45,25 +45,19 @@ import {
   getMotoUpcomingReminders,
   getMonthlyComparisons,
   getMonthlyEvolution,
-  getProfitByProduct,
   getPrintableSpendingReport,
   getRecurrenceInsights,
-  getStoreConsumptionByFilament,
   getSpendByCategory,
   getSpendByCenter,
   getSpendByPaymentMethod,
-  getStoreDashboardSummary,
   getVehicleAnnualFixedCostSummary,
   getVehicleFixedCostAgenda,
   getVehiclePerformanceTable,
-  getStoreMonthlyTrend,
-  getStoreProductionInsights,
-  getStoreWasteByItem,
 } from "@/utils/finance";
 
 const validPeriods = new Set<ReportPeriod>(["day", "week", "month", "year"]);
 const validStyles = new Set<PrintableReportStyle>(["neutral", "economy", "operational"]);
-const validTabs = new Set(["financeiro", "moto", "loja", "consolidado"]);
+const validTabs = new Set(["financeiro", "moto", "consolidado"]);
 
 type AiFinancialReview = {
   title: string;
@@ -121,22 +115,6 @@ const ReportsMotoMonthlyTrendBarChart = dynamic(
   () =>
     import("@/features/reports/charts/reports-charts").then(
       (module) => module.ReportsMotoMonthlyTrendBarChart,
-    ),
-  { ssr: false, loading: chartLoading },
-);
-
-const ReportsStoreMonthlyTrendLineChart = dynamic(
-  () =>
-    import("@/features/reports/charts/reports-charts").then(
-      (module) => module.ReportsStoreMonthlyTrendLineChart,
-    ),
-  { ssr: false, loading: chartLoading },
-);
-
-const ReportsStoreCostBreakdownBarChart = dynamic(
-  () =>
-    import("@/features/reports/charts/reports-charts").then(
-      (module) => module.ReportsStoreCostBreakdownBarChart,
     ),
   { ssr: false, loading: chartLoading },
 );
@@ -261,17 +239,11 @@ export function ReportsPage() {
         selectedVehicleScope,
       ),
       vehiclePerformance: getVehiclePerformanceTable(snapshot, selectedMonth),
-      store: getStoreDashboardSummary(snapshot, selectedMonth),
-      storeInsights: getStoreProductionInsights(snapshot, selectedMonth),
-      storeMonthlyTrend: getStoreMonthlyTrend(snapshot, 6),
       consolidated: getConsolidatedSummary(snapshot, selectedMonth),
       consolidatedTrend: getConsolidatedMonthlyTrend(snapshot, 6),
       monthlyComparisons: getMonthlyComparisons(snapshot, selectedMonth),
       recurrenceInsights: getRecurrenceInsights(snapshot, selectedMonth),
       automationFeed: getAutomationFeed(snapshot, selectedMonth, 6),
-      profitByProduct: getProfitByProduct(snapshot, selectedMonth).slice(0, 6),
-      filamentConsumption: getStoreConsumptionByFilament(snapshot, selectedMonth).slice(0, 6),
-      wasteByItem: getStoreWasteByItem(snapshot, selectedMonth).slice(0, 6),
       printableReport: getPrintableSpendingReport(snapshot, {
         anchorDate: printAnchorDate,
         period: printPeriod,
@@ -352,17 +324,11 @@ export function ReportsPage() {
     vehicleFixedCosts,
     vehicleAnnualFixedCosts,
     vehiclePerformance,
-    store,
-    storeInsights,
-    storeMonthlyTrend,
     consolidated,
     consolidatedTrend,
     monthlyComparisons,
     recurrenceInsights,
     automationFeed,
-    profitByProduct,
-    filamentConsumption,
-    wasteByItem,
     printableReport,
   } = reportData;
 
@@ -372,7 +338,7 @@ export function ReportsPage() {
         <div className="space-y-1">
           <p className="text-sm uppercase tracking-[0.28em] text-zinc-500">Relatórios úteis</p>
           <h1 className="font-heading text-3xl font-semibold text-zinc-50">
-            Financeiro, automóvel, loja e consolidado sem misturar tudo.
+            Financeiro, automóvel e consolidado sem misturar tudo.
           </h1>
         </div>
         <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
@@ -397,14 +363,14 @@ export function ReportsPage() {
           accent="from-amber-400/20 via-amber-500/10 to-transparent"
         />
         <SummaryCard
-          icon={Zap}
-          label="Loja no período"
-          value={formatCurrencyBRL(store.grossProfit)}
-          detail={`Energia ${formatCurrencyBRL(storeInsights.totalEnergyCost)} • pintura ${formatCurrencyBRL(storeInsights.totalPaintCost)}`}
+          icon={Repeat}
+          label="Recorrências ativas"
+          value={`${recurrenceInsights.activeRules}`}
+          detail={`${recurrenceInsights.upcomingCount} ocorrência(s) prevista(s)`}
           accent="from-cyan-400/20 via-cyan-500/10 to-transparent"
           badge={{
-            text: store.grossProfit >= 0 ? "Operação" : "Prejuízo",
-            tone: store.grossProfit >= 0 ? "default" : "danger",
+            text: recurrenceInsights.activeRules > 0 ? "Recorrente" : "Manual",
+            tone: recurrenceInsights.activeRules > 0 ? "default" : "warning",
           }}
         />
         <SummaryCard
@@ -424,10 +390,9 @@ export function ReportsPage() {
         }}
         className="space-y-4"
       >
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="financeiro">Financeiro</TabsTrigger>
           <TabsTrigger value="moto">Automóvel</TabsTrigger>
-          <TabsTrigger value="loja">Loja</TabsTrigger>
           <TabsTrigger value="consolidado">Consolidado</TabsTrigger>
         </TabsList>
 
@@ -516,7 +481,7 @@ export function ReportsPage() {
               </div>
             </ChartCard>
 
-            <ChartCard title="Gastos por centro" description="Pessoal, casal, automóvel e loja lado a lado.">
+            <ChartCard title="Gastos por centro" description="Pessoal, casal e automóvel lado a lado.">
               <div className="h-72">
                 <ReportsCenterBarChart
                   data={centerData.map((item) => ({
@@ -788,131 +753,6 @@ export function ReportsPage() {
                   </div>
                 )) : (
                   <p className="text-sm text-zinc-400">Nenhum lembrete ativo no momento.</p>
-                )}
-              </div>
-            </ChartCard>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="loja" className="space-y-4">
-          <Card>
-            <CardContent className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5">
-              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3 lg:col-span-2">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Leitura rápida</p>
-                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">
-                  {store.grossProfit >= 0 ? "Operação saudável" : "Operação no vermelho"}
-                </p>
-                <p className="mt-1 text-sm text-zinc-400">
-                  {store.openOrders} pedido(s) em aberto, {store.criticalStockCount} item(ns) críticos e {formatCurrencyBRL(store.wasteCost)} em desperdício.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Lucro</p>
-                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCompactCurrencyBRL(store.grossProfit)}</p>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Energia</p>
-                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCompactCurrencyBRL(storeInsights.totalEnergyCost)}</p>
-              </div>
-              <div className="rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Pintura</p>
-                <p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCompactCurrencyBRL(storeInsights.totalPaintCost)}</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-6">
-            <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Faturamento</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(store.revenue)}</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Custo</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(store.cost)}</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Lucro</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(store.grossProfit)}</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Margem</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{store.averageMargin}%</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Desperdício</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{store.wasteGrams} g</p></CardContent></Card>
-            <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Estoque crítico</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{store.criticalStockCount}</p></CardContent></Card>
-          </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <ChartCard title="Produtos mais lucrativos" description="Lucro por pedido/produto no mês.">
-              <div className="space-y-3">
-                {profitByProduct.map((item) => (
-                  <div key={item.productName} className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                    <div>
-                      <p className="text-sm text-zinc-100">{item.productName}</p>
-                      <p className="text-xs text-zinc-400">Margem {item.marginPercent}%</p>
-                    </div>
-                    <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.grossProfit)}</p>
-                  </div>
-                ))}
-              </div>
-            </ChartCard>
-            <ChartCard title="Comparativo mensal da loja" description="Faturamento, custo e lucro dos últimos meses.">
-              <div className="h-72">
-                <ReportsStoreMonthlyTrendLineChart
-                  data={storeMonthlyTrend.map((item) => ({
-                    month: formatMonthShortLabel(item.month),
-                    faturamento: item.revenue,
-                    custo: item.cost,
-                    lucro: item.profit,
-                  }))}
-                />
-              </div>
-            </ChartCard>
-          </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <ChartCard title="Consumo por material/cor" description="Filamentos que mais saíram no período.">
-              <div className="space-y-3">
-                {filamentConsumption.length ? filamentConsumption.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                    <div>
-                      <p className="text-sm text-zinc-100">{item.label}</p>
-                      <p className="text-xs text-zinc-400">Desperdício {item.wasteQuantity} g</p>
-                    </div>
-                    <p className="font-medium text-zinc-50">{item.quantity} g</p>
-                  </div>
-                )) : (
-                  <p className="text-sm text-zinc-400">Sem consumo de filamento no período.</p>
-                )}
-              </div>
-            </ChartCard>
-            <ChartCard title="Breakdown de custo produtivo" description="Energia, pintura, insumos e acabamento.">
-              <div className="h-72">
-                <ReportsStoreCostBreakdownBarChart
-                  data={[
-                    { name: "Energia", total: storeInsights.totalEnergyCost },
-                    { name: "Pintura", total: storeInsights.totalPaintCost },
-                    { name: "Outros insumos", total: storeInsights.totalOtherSupplyCost },
-                    { name: "Acabamento", total: storeInsights.totalFinishingCost },
-                  ]}
-                />
-              </div>
-            </ChartCard>
-          </div>
-          <div className="grid gap-4 xl:grid-cols-2">
-            <ChartCard title="Desperdício por item" description="Onde o desperdício está virando custo.">
-              <div className="space-y-3">
-                {wasteByItem.length ? wasteByItem.map((item) => (
-                  <div key={item.label} className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                    <div>
-                      <p className="text-sm text-zinc-100">{item.label}</p>
-                      <p className="text-xs text-zinc-400">{item.wasteQuantity} g</p>
-                    </div>
-                    <p className="font-medium text-zinc-50">{formatCurrencyBRL(item.wasteCost)}</p>
-                  </div>
-                )) : (
-                  <p className="text-sm text-zinc-400">Sem desperdício registrado no período.</p>
-                )}
-              </div>
-            </ChartCard>
-            <ChartCard title="Pedidos com lucro e prejuízo" description="Ranking rápido para tomar decisão sobre preço.">
-              <div className="space-y-3">
-                {profitByProduct.length ? profitByProduct.map((item) => (
-                  <div key={item.productName} className="flex items-center justify-between rounded-2xl border border-white/8 bg-white/6 px-4 py-3">
-                    <div>
-                      <p className="text-sm text-zinc-100">{item.productName}</p>
-                      <p className="text-xs text-zinc-400">Margem {item.marginPercent}%</p>
-                    </div>
-                    <p className={`font-medium ${item.grossProfit >= 0 ? "text-emerald-300" : "text-rose-300"}`}>{formatCurrencyBRL(item.grossProfit)}</p>
-                  </div>
-                )) : (
-                  <p className="text-sm text-zinc-400">Sem pedidos suficientes para ranking neste período.</p>
                 )}
               </div>
             </ChartCard>
@@ -1257,14 +1097,14 @@ export function ReportsPage() {
           </div>
 
           <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-            <ChartCard title="Consolidado geral por módulo" description="Receita e custo pessoal, automóvel e loja no mesmo horizonte.">
+            <ChartCard title="Consolidado geral por módulo" description="Despesa pessoal, automóvel e saldo líquido no mesmo horizonte.">
               <div className="h-80">
                 <ReportsConsolidatedByModuleBarChart
                   data={consolidatedTrend.map((item) => ({
                     month: formatMonthShortLabel(item.month),
                     pessoal: item.personalExpense,
-                    moto: item.motoCost,
-                    loja: item.storeProfit,
+                    automovel: item.motoCost,
+                    saldo: item.net,
                   }))}
                 />
               </div>

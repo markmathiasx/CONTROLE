@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bike, FolderKanban, House, LayoutGrid, Printer, Wallet } from "lucide-react";
+import { Bike, FolderKanban, House, LayoutGrid, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -14,12 +14,12 @@ const primaryItems = [
   { href: "/", label: "Resumo", icon: House },
   { href: "/financeiro", label: "Financeiro", icon: Wallet },
   { href: "/moto", label: "Veículos", icon: Bike },
-  { href: "/loja", label: "Loja", icon: Printer },
 ] as const;
 
 const secondaryItems = [
   { href: "/transacoes", label: "Transações" },
-  { href: "/loja/catalogo", label: "Catálogo" },
+  { href: "/moto/abastecimentos", label: "Abastecimentos" },
+  { href: "/moto/manutencoes", label: "Manutenções" },
   { href: "/cartoes", label: "Cartões" },
   { href: "/parcelas", label: "Parcelas" },
   { href: "/categorias", label: "Categorias" },
