@@ -18,10 +18,13 @@ function buildContentSecurityPolicy() {
     process.env.VERCEL_ENV === "preview" ? " https://vercel.live" : "";
   const previewConnectSources =
     process.env.VERCEL_ENV === "preview" ? " https://vercel.live wss://vercel.live" : "";
+  const previewFrameSources =
+    process.env.VERCEL_ENV === "preview" ? " https://vercel.live" : "";
   const directives = [
     "default-src 'self'",
     "base-uri 'self'",
     "frame-ancestors 'none'",
+    `frame-src 'self'${previewFrameSources}`,
     "form-action 'self'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
