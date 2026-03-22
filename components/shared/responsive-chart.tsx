@@ -11,7 +11,7 @@ export function ResponsiveChart({
   minHeight?: number;
 }) {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
-  const [ready, setReady] = React.useState(false);
+  const [size, setSize] = React.useState({ width: 0, height: 0 });
 
   React.useEffect(() => {
     const element = containerRef.current;
@@ -20,7 +20,10 @@ export function ResponsiveChart({
     }
 
     const update = () => {
-      setReady(element.clientWidth > 0 && element.clientHeight > 0);
+      setSize({
+        width: element.clientWidth,
+        height: element.clientHeight,
+      });
     };
 
     update();
@@ -35,10 +38,17 @@ export function ResponsiveChart({
     };
   }, []);
 
+  const ready = size.width > 0 && size.height > 0;
+
   return (
     <div ref={containerRef} className="h-full w-full" style={{ minHeight }}>
       {ready ? (
-        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={minHeight}>
+        <ResponsiveContainer
+          width={size.width}
+          height={size.height}
+          minWidth={0}
+          minHeight={minHeight}
+        >
           {children}
         </ResponsiveContainer>
       ) : (
