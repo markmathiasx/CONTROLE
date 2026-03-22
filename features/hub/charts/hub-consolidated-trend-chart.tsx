@@ -4,11 +4,12 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+
+import { ResponsiveChart } from "@/components/shared/responsive-chart";
 
 export function HubConsolidatedTrendChart({
   data,
@@ -21,7 +22,7 @@ export function HubConsolidatedTrendChart({
   }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <BarChart data={data}>
         <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
         <XAxis dataKey="month" stroke="#71717a" />
@@ -31,6 +32,6 @@ export function HubConsolidatedTrendChart({
         <Bar dataKey="operacional" fill="#f59e0b" radius={[14, 14, 0, 0]} />
         <Bar dataKey="saldo" fill="#06b6d4" radius={[14, 14, 0, 0]} />
       </BarChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }

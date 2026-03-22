@@ -6,11 +6,12 @@ import {
   Cell,
   Line,
   LineChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+
+import { ResponsiveChart } from "@/components/shared/responsive-chart";
 
 export function ReportsCategoryBarChart({
   data,
@@ -18,7 +19,7 @@ export function ReportsCategoryBarChart({
   data: Array<{ name: string; total: number; fill: string }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <BarChart data={data}>
         <XAxis dataKey="name" stroke="#71717a" />
         <YAxis stroke="#71717a" />
@@ -29,7 +30,7 @@ export function ReportsCategoryBarChart({
           ))}
         </Bar>
       </BarChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 
@@ -39,7 +40,7 @@ export function ReportsCenterBarChart({
   data: Array<{ name: string; total: number; fill: string }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <BarChart data={data}>
         <XAxis dataKey="name" stroke="#71717a" />
         <YAxis stroke="#71717a" />
@@ -50,7 +51,7 @@ export function ReportsCenterBarChart({
           ))}
         </Bar>
       </BarChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 
@@ -60,14 +61,14 @@ export function ReportsFutureInstallmentsBarChart({
   data: Array<{ month: string; total: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <BarChart data={data}>
         <XAxis dataKey="month" stroke="#71717a" />
         <YAxis stroke="#71717a" />
         <Tooltip />
         <Bar dataKey="total" fill="#8b5cf6" radius={[14, 14, 0, 0]} />
       </BarChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 
@@ -77,7 +78,7 @@ export function ReportsMonthlyEvolutionLineChart({
   data: Array<{ month: string; receita: number; gasto: number; fatura: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <LineChart data={data}>
         <XAxis dataKey="month" stroke="#71717a" />
         <YAxis stroke="#71717a" />
@@ -86,7 +87,7 @@ export function ReportsMonthlyEvolutionLineChart({
         <Line type="monotone" dataKey="gasto" stroke="#06b6d4" strokeWidth={3} />
         <Line type="monotone" dataKey="fatura" stroke="#8b5cf6" strokeWidth={3} />
       </LineChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 
@@ -96,14 +97,14 @@ export function ReportsMotoCostByCategoryBarChart({
   data: Array<{ name: string; total: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <BarChart data={data}>
         <XAxis dataKey="name" stroke="#71717a" />
         <YAxis stroke="#71717a" />
         <Tooltip />
         <Bar dataKey="total" fill="#f59e0b" radius={[14, 14, 0, 0]} />
       </BarChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 
@@ -113,7 +114,7 @@ export function ReportsMotoMonthlyTrendBarChart({
   data: Array<{ month: string; combustivel: number; manutencao: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <BarChart data={data}>
         <XAxis dataKey="month" stroke="#71717a" />
         <YAxis stroke="#71717a" />
@@ -121,7 +122,7 @@ export function ReportsMotoMonthlyTrendBarChart({
         <Bar dataKey="combustivel" fill="#06b6d4" radius={[14, 14, 0, 0]} />
         <Bar dataKey="manutencao" fill="#8b5cf6" radius={[14, 14, 0, 0]} />
       </BarChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 
@@ -131,7 +132,7 @@ export function ReportsStoreMonthlyTrendLineChart({
   data: Array<{ month: string; faturamento: number; custo: number; lucro: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <LineChart data={data}>
         <XAxis dataKey="month" stroke="#71717a" />
         <YAxis stroke="#71717a" />
@@ -140,7 +141,7 @@ export function ReportsStoreMonthlyTrendLineChart({
         <Line type="monotone" dataKey="custo" stroke="#06b6d4" strokeWidth={3} />
         <Line type="monotone" dataKey="lucro" stroke="#f59e0b" strokeWidth={3} />
       </LineChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 
@@ -150,14 +151,14 @@ export function ReportsStoreCostBreakdownBarChart({
   data: Array<{ name: string; total: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <BarChart data={data}>
         <XAxis dataKey="name" stroke="#71717a" />
         <YAxis stroke="#71717a" />
         <Tooltip />
         <Bar dataKey="total" fill="#06b6d4" radius={[14, 14, 0, 0]} />
       </BarChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
 
@@ -167,7 +168,7 @@ export function ReportsConsolidatedByModuleBarChart({
   data: Array<{ month: string; pessoal: number; automovel: number; saldo: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveChart>
       <BarChart data={data}>
         <XAxis dataKey="month" stroke="#71717a" />
         <YAxis stroke="#71717a" />
@@ -176,6 +177,6 @@ export function ReportsConsolidatedByModuleBarChart({
         <Bar dataKey="automovel" stackId="a" fill="#f59e0b" radius={[14, 14, 0, 0]} />
         <Bar dataKey="saldo" stackId="a" fill="#10b981" radius={[14, 14, 0, 0]} />
       </BarChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }

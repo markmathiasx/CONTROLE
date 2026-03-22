@@ -1,6 +1,8 @@
 "use client";
 
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Cell, Pie, PieChart, Tooltip } from "recharts";
+
+import { ResponsiveChart } from "@/components/shared/responsive-chart";
 
 export function TopCategoriesPieChart({
   data,
@@ -8,7 +10,7 @@ export function TopCategoriesPieChart({
   data: Array<{ name: string; value: number; color: string }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
+    <ResponsiveChart>
       <PieChart>
         <Pie data={data} innerRadius={56} outerRadius={80} dataKey="value">
           {data.map((item) => (
@@ -17,6 +19,6 @@ export function TopCategoriesPieChart({
         </Pie>
         <Tooltip />
       </PieChart>
-    </ResponsiveContainer>
+    </ResponsiveChart>
   );
 }
