@@ -8,7 +8,7 @@ export function PaymentMethodBarChart({
   data: Array<{ name: string; total: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
       <BarChart data={data} layout="vertical" margin={{ left: 8, right: 8 }}>
         <XAxis type="number" stroke="#71717a" />
         <YAxis type="category" dataKey="name" stroke="#71717a" width={72} />

@@ -8,7 +8,7 @@ export function TopCategoriesPieChart({
   data: Array<{ name: string; value: number; color: string }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
       <PieChart>
         <Pie data={data} innerRadius={56} outerRadius={80} dataKey="value">
           {data.map((item) => (

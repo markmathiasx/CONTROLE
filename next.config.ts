@@ -14,6 +14,10 @@ const withPWA = withPWAInit({
 });
 
 function buildContentSecurityPolicy() {
+  const previewScriptSources =
+    process.env.VERCEL_ENV === "preview" ? " https://vercel.live" : "";
+  const previewConnectSources =
+    process.env.VERCEL_ENV === "preview" ? " https://vercel.live wss://vercel.live" : "";
   const directives = [
     "default-src 'self'",
     "base-uri 'self'",
@@ -22,8 +26,8 @@ function buildContentSecurityPolicy() {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https:",
     "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline'",
-    "connect-src 'self' https: wss:",
+    `script-src 'self' 'unsafe-inline'${previewScriptSources}`,
+    `connect-src 'self' https: wss:${previewConnectSources}`,
     "worker-src 'self' blob:",
     "manifest-src 'self'",
     "object-src 'none'",

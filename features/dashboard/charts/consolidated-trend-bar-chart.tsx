@@ -8,7 +8,7 @@ export function ConsolidatedTrendBarChart({
   data: Array<{ month: string; receita: number; operacional: number; saldo: number }>;
 }) {
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={220}>
       <BarChart data={data}>
         <XAxis dataKey="month" stroke="#71717a" />
         <YAxis stroke="#71717a" />
