@@ -12,16 +12,17 @@ export async function POST(request: Request) {
     return blockedOrigin;
   }
 
+  const response = NextResponse.json({ ok: true });
   const blockedByRateLimit = checkRateLimit(request, {
     key: "auth-signup",
     max: 5,
     windowMs: 60_000,
+    response,
   });
   if (blockedByRateLimit) {
     return blockedByRateLimit;
   }
 
-  const response = NextResponse.json({ ok: true });
   const supabase = await getSupabaseRouteHandlerClient(response);
   if (!supabase) {
     return jsonNoStore(

@@ -130,14 +130,21 @@ export function SignupPage() {
   }
 
   return (
-    <div className="aurora-hero mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-5xl items-center justify-center px-4 py-10 sm:px-6">
+    <div className="aurora-hero app-backdrop-grid mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-6xl items-center justify-center px-4 py-10 sm:px-6">
       <div className="grid w-full gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card className="glass-panel premium-hover">
+        <Card className="liquid-shell premium-hover surface-animate">
           <CardHeader>
-            <RuntimeModeBadge />
+            <div className="flex flex-wrap items-center gap-2">
+              <RuntimeModeBadge />
+              <div className="liquid-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-cyan-100">
+                <ShieldCheck className="size-3.5" />
+                Workspace pessoal automático
+              </div>
+            </div>
             <CardTitle>Criar conta</CardTitle>
             <CardDescription>
-              Seu login vira seu identificador principal. O e-mail fica para autenticação e recuperação.
+              Seu login vira seu identificador principal. O e-mail fica para autenticação,
+              recuperação e uso do mesmo controle em mais de um dispositivo.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -276,9 +283,9 @@ export function SignupPage() {
                 ) : null}
               </div>
 
-              <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
-                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Força da senha</p>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="liquid-card rounded-2xl p-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Força da senha</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   {[
                     { ok: currentPassword.length >= 8, label: "8+ caracteres" },
                     { ok: /[a-z]/.test(currentPassword), label: "1 letra minúscula" },
@@ -311,7 +318,7 @@ export function SignupPage() {
               </Link>
             </p>
 
-            <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+            <div className="liquid-card rounded-2xl p-3">
               <p className="flex items-center gap-2 text-xs text-zinc-300">
                 <ShieldCheck className="size-4 text-emerald-300" />
                 Senha tratada somente pelo Supabase Auth, sem armazenamento manual em tabela própria.
@@ -320,24 +327,33 @@ export function SignupPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel float-soft border-cyan-400/20 bg-[linear-gradient(180deg,rgba(8,145,178,0.16),rgba(9,9,11,0.96))]">
+        <Card className="liquid-shell float-soft border-cyan-400/20 bg-[linear-gradient(180deg,rgba(8,145,178,0.16),rgba(5,10,21,0.98))]">
           <CardContent className="space-y-5 p-6">
-            <p className="text-sm uppercase tracking-[0.28em] text-cyan-200/80">Workspace pessoal</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm uppercase tracking-[0.28em] text-cyan-200/80">Workspace pessoal</p>
+              <div className="liquid-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-zinc-100">
+                <UserPlus className="size-3.5" />
+                Dados separados por conta
+              </div>
+            </div>
             <h1 className="font-heading text-3xl font-semibold text-zinc-50">
               Sua conta já nasce pronta para usar sozinho agora e compartilhar depois.
             </h1>
             <p className="text-sm leading-6 text-zinc-300">
               No cadastro, o sistema cria seu perfil, seu workspace pessoal e deixa a base pronta para
-              você incluir sua namorada no futuro sem refazer os dados.
+              você incluir sua namorada no futuro sem refazer os dados. Cada novo login começa
+              com um espaço próprio, sem herdar gastos ou veículos de outra pessoa.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-white/6 p-3">
+              <div className="liquid-card rounded-2xl p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Bootstrap automático</p>
                 <p className="mt-2 text-sm text-zinc-200">Perfil, workspace e membership criados via trigger.</p>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/6 p-3">
+              <div className="liquid-card rounded-2xl p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Escalável</p>
-                <p className="mt-2 text-sm text-zinc-200">Estrutura pronta para contexto compartilhado futuramente.</p>
+                <p className="mt-2 text-sm text-zinc-200">
+                  Estrutura pronta para muitos usuários sem misturar dados entre contas.
+                </p>
               </div>
             </div>
           </CardContent>

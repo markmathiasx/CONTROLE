@@ -31,7 +31,8 @@ import {
 } from "@/utils/operations";
 import { createSeedSnapshot } from "@/utils/seed";
 
-type SyncStatus = "idle" | "local" | "syncing" | "synced" | "error";
+type SyncStatus = "idle" | "local" | "queued" | "syncing" | "synced" | "error";
+type PersistOptions = { immediate?: boolean };
 
 interface FinanceState {
   runtimeConfig: RuntimeConfig;
@@ -41,6 +42,7 @@ interface FinanceState {
   activeWorkspaceId: string | null;
   activeUserId: string | null;
   syncStatus: SyncStatus;
+  syncError: string | null;
   quickAddOpen: boolean;
   moreMenuOpen: boolean;
   bootstrap: (config: RuntimeConfig) => Promise<void>;
@@ -56,8 +58,12 @@ interface FinanceState {
   setQuickAddOpen: (open: boolean) => void;
   setMoreMenuOpen: (open: boolean) => void;
   setSyncStatus: (status: SyncStatus) => void;
-  markSynced: (timestamp?: string) => Promise<void>;
-  persistNow: () => Promise<void>;
+  markSynced: (params?: {
+    timestamp?: string;
+    persistedVersion?: number;
+    persistedUpdatedAt?: string;
+  }) => Promise<void>;
+  persistNow: (options?: PersistOptions) => Promise<void>;
   saveEntry: (values: EntryFormValues) => void;
   deleteEntry: (id: string, kind: "expense" | "income") => void;
   saveCategory: (values: CategoryFormValues) => void;
@@ -340,6 +346,43 @@ function recalculateVehicleOdometer(snapshot: WorkspaceSnapshot, vehicleId: stri
   vehicle.updatedByUserId = actorUserId;
 }
 
+const PERSIST_DEBOUNCE_MS = 850;
+let scheduledPersistTimer: ReturnType<typeof setTimeout> | null = null;
+let persistInFlight: Promise<void> | null = null;
+let persistQueuedWhileRunning = false;
+
+function clearScheduledPersist() {
+  if (scheduledPersistTimer) {
+    clearTimeout(scheduledPersistTimer);
+    scheduledPersistTimer = null;
+  }
+}
+
+async function saveSnapshotCache(
+  runtimeConfig: RuntimeConfig,
+  activeWorkspaceId: string | null,
+  snapshot: WorkspaceSnapshot,
+) {
+  try {
+    if (runtimeConfig.storageMode === "supabase" && activeWorkspaceId) {
+      await localDbAdapter.saveWorkspace(activeWorkspaceId, snapshot);
+      return;
+    }
+
+    await localDbAdapter.saveAnonymous(snapshot);
+  } catch {
+    // localStorage backup in the adapter already protects against IndexedDB instability.
+  }
+}
+
+function schedulePersistFlush(delay = PERSIST_DEBOUNCE_MS) {
+  clearScheduledPersist();
+  scheduledPersistTimer = setTimeout(() => {
+    scheduledPersistTimer = null;
+    void useFinanceStore.getState().persistNow({ immediate: true });
+  }, delay);
+}
+
 function restoreProductionInventory(snapshot: WorkspaceSnapshot, productionJobId: string, actorUserId: string | null) {
   const usages = snapshot.productionMaterialUsages.filter((usage) => usage.productionJobId === productionJobId);
 
@@ -373,6 +416,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
   activeWorkspaceId: null,
   activeUserId: null,
   syncStatus: "idle",
+  syncError: null,
   quickAddOpen: false,
   moreMenuOpen: false,
   async bootstrap(config) {
@@ -380,6 +424,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       return;
     }
 
+    clearScheduledPersist();
+    persistQueuedWhileRunning = false;
     const migratedSnapshot = await localDbAdapter.migrateFromLegacyLocalStorage();
     let snapshot = migratedSnapshot ?? (await localDbAdapter.loadAnonymous()) ?? createSeedSnapshot(config.storageMode);
     snapshot = withStorageMode(snapshot, config);
@@ -392,16 +438,13 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       activeWorkspaceId: snapshot.workspace.id,
       activeUserId: snapshot.user.id,
       syncStatus: "local",
+      syncError: null,
     });
   },
   async hydrateWorkspace({ config, snapshot, workspaceId, userId, syncStatus = "synced" }) {
     const nextSnapshot = withStorageMode(snapshot, config);
 
-    if (config.storageMode === "supabase" && workspaceId) {
-      await localDbAdapter.saveWorkspace(workspaceId, nextSnapshot);
-    } else {
-      await localDbAdapter.saveAnonymous(nextSnapshot);
-    }
+    await saveSnapshotCache(config, workspaceId, nextSnapshot);
 
     set({
       runtimeConfig: config,
@@ -411,15 +454,19 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       activeWorkspaceId: workspaceId,
       activeUserId: userId,
       syncStatus,
+      syncError: null,
     });
   },
   clearWorkspaceState() {
+    clearScheduledPersist();
+    persistQueuedWhileRunning = false;
     set({
       initialized: false,
       snapshot: null,
       activeWorkspaceId: null,
       activeUserId: null,
       syncStatus: "idle",
+      syncError: null,
       quickAddOpen: false,
       moreMenuOpen: false,
     });
@@ -434,46 +481,121 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     set({ moreMenuOpen: open });
   },
   setSyncStatus(status) {
-    set({ syncStatus: status });
+    set((current) => ({
+      syncStatus: status,
+      syncError: status === "error" ? current.syncError : null,
+    }));
   },
-  async markSynced(timestamp = new Date().toISOString()) {
+  async markSynced(params) {
     const { snapshot, activeWorkspaceId, runtimeConfig } = get();
     if (!snapshot) {
+      return;
+    }
+
+    const timestamp = params?.timestamp ?? new Date().toISOString();
+    const isLatestPersistedSnapshot =
+      params?.persistedVersion == null ||
+      (snapshot.version === params.persistedVersion &&
+        snapshot.meta.updatedAt === params.persistedUpdatedAt);
+
+    if (!isLatestPersistedSnapshot) {
+      set({
+        syncStatus: snapshot.meta.dirty ? "queued" : "synced",
+        syncError: null,
+      });
       return;
     }
 
     const next = cloneSnapshot(snapshot);
     next.meta.dirty = false;
     next.meta.lastSyncedAt = timestamp;
-    if (runtimeConfig.storageMode === "supabase" && activeWorkspaceId) {
-      await localDbAdapter.saveWorkspace(activeWorkspaceId, next);
-    } else {
-      await localDbAdapter.saveAnonymous(next);
-    }
-    set({ snapshot: next, syncStatus: "synced" });
+    await saveSnapshotCache(runtimeConfig, activeWorkspaceId, next);
+    set({ snapshot: next, syncStatus: "synced", syncError: null });
   },
-  async persistNow() {
-    const { snapshot, runtimeConfig, activeWorkspaceId, activeUserId } = get();
+  async persistNow(options) {
+    const { snapshot, runtimeConfig, activeWorkspaceId } = get();
     if (!snapshot) {
       return;
     }
 
-    if (runtimeConfig.storageMode === "supabase" && activeWorkspaceId) {
-      await localDbAdapter.saveWorkspace(activeWorkspaceId, snapshot);
-      set({ syncStatus: "syncing" });
-      try {
-        if (!activeUserId) {
-          throw new Error("Usuário autenticado não encontrado.");
-        }
-        await supabaseStorageAdapter.save(activeWorkspaceId, snapshot, activeUserId);
-        await get().markSynced();
-      } catch {
-        set({ syncStatus: "error" });
-      }
-    } else {
-      await localDbAdapter.saveAnonymous(snapshot);
-      set({ syncStatus: "local" });
+    const immediate = options?.immediate ?? false;
+
+    await saveSnapshotCache(runtimeConfig, activeWorkspaceId, snapshot);
+
+    if (runtimeConfig.storageMode !== "supabase" || !activeWorkspaceId) {
+      set({ syncStatus: "local", syncError: null });
+      return;
     }
+
+    if (!immediate) {
+      set({ syncStatus: "queued", syncError: null });
+      schedulePersistFlush();
+      return;
+    }
+
+    clearScheduledPersist();
+
+    if (persistInFlight) {
+      persistQueuedWhileRunning = true;
+      return persistInFlight;
+    }
+
+    persistInFlight = (async () => {
+      while (true) {
+        persistQueuedWhileRunning = false;
+        const currentState = get();
+        const currentSnapshot = currentState.snapshot;
+
+        if (!currentSnapshot || !currentState.activeWorkspaceId) {
+          return;
+        }
+
+        const persistedVersion = currentSnapshot.version;
+        const persistedUpdatedAt = currentSnapshot.meta.updatedAt;
+
+        await saveSnapshotCache(
+          currentState.runtimeConfig,
+          currentState.activeWorkspaceId,
+          currentSnapshot,
+        );
+        set({ syncStatus: "syncing", syncError: null });
+
+        try {
+          if (!currentState.activeUserId) {
+            throw new Error("Usuário autenticado não encontrado.");
+          }
+
+          await supabaseStorageAdapter.save(
+            currentState.activeWorkspaceId,
+            currentSnapshot,
+            currentState.activeUserId,
+          );
+          await get().markSynced({
+            timestamp: new Date().toISOString(),
+            persistedVersion,
+            persistedUpdatedAt,
+          });
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Falha ao sincronizar o workspace na nuvem.";
+          set({ syncStatus: "error", syncError: message });
+          return;
+        }
+
+        if (!persistQueuedWhileRunning && !get().snapshot?.meta.dirty) {
+          return;
+        }
+
+        set({ syncStatus: "queued", syncError: null });
+      }
+    })().finally(() => {
+      persistInFlight = null;
+      if (persistQueuedWhileRunning) {
+        schedulePersistFlush(180);
+      }
+    });
+
+    return persistInFlight;
   },
   saveEntry(values) {
     const current = get().snapshot;
@@ -1474,7 +1596,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
     next.meta.dirty = true;
     next.meta.updatedAt = new Date().toISOString();
     set({ snapshot: next });
-    void get().persistNow();
+    void get().persistNow({ immediate: true });
   },
   resetWorkspace() {
     const runtimeConfig = get().runtimeConfig;
@@ -1483,6 +1605,7 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       runtimeConfig.storageMode === "supabase" && currentSnapshot
         ? createSeedSnapshot({
             storageMode: runtimeConfig.storageMode,
+            seedMode: "empty",
             workspaceId: currentSnapshot.workspace.id,
             workspaceName: currentSnapshot.workspace.name,
             userId: currentSnapshot.user.id,
@@ -1495,7 +1618,8 @@ export const useFinanceStore = create<FinanceState>((set, get) => ({
       snapshot,
       selectedMonth: formatMonthKey(new Date()),
       syncStatus: runtimeConfig.storageMode === "supabase" ? "syncing" : "local",
+      syncError: null,
     });
-    void get().persistNow();
+    void get().persistNow({ immediate: true });
   },
 }));

@@ -34,6 +34,7 @@ function Bootstrapper({ runtimeConfig }: { runtimeConfig: RuntimeConfig }) {
 function SyncRecovery() {
   const authStatus = useAuthStore((state) => state.status);
   const syncStatus = useFinanceStore((state) => state.syncStatus);
+  const syncError = useFinanceStore((state) => state.syncError);
   const snapshot = useFinanceStore((state) => state.snapshot);
   const runtimeConfig = useFinanceStore((state) => state.runtimeConfig);
   const persistNow = useFinanceStore((state) => state.persistNow);
@@ -48,7 +49,7 @@ function SyncRecovery() {
 
     if (previousSyncStatusRef.current !== syncStatus) {
       if (syncStatus === "error") {
-        toast.error("A nuvem falhou por enquanto. Seus dados continuam no cache local.");
+        toast.error(syncError ?? "A nuvem falhou por enquanto. Seus dados continuam no cache local.");
       }
 
       if (previousSyncStatusRef.current === "error" && syncStatus === "synced") {
@@ -57,7 +58,7 @@ function SyncRecovery() {
     }
 
     previousSyncStatusRef.current = syncStatus;
-  }, [authStatus, runtimeConfig.storageMode, syncStatus]);
+  }, [authStatus, runtimeConfig.storageMode, syncError, syncStatus]);
 
   React.useEffect(() => {
     if (runtimeConfig.storageMode !== "supabase" || authStatus !== "authenticated") {
@@ -86,7 +87,7 @@ function SyncRecovery() {
       }
 
       lastAttemptRef.current = now;
-      void currentState.persistNow();
+      void currentState.persistNow({ immediate: true });
     };
 
     const interval = window.setInterval(attemptSync, 30000);

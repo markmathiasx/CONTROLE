@@ -4,6 +4,7 @@ import * as React from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   AlertTriangle,
   ArrowRight,
@@ -14,15 +15,6 @@ import {
   Wallet,
   Wrench,
 } from "lucide-react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import { ChartCard } from "@/components/shared/chart-card";
 import { DeltaPill } from "@/components/shared/delta-pill";
@@ -47,6 +39,17 @@ import {
   getConsolidatedMonthlyTrend,
   getHubExecutiveSummary,
 } from "@/utils/finance";
+
+const HubConsolidatedTrendChart = dynamic(
+  () =>
+    import("@/features/hub/charts/hub-consolidated-trend-chart").then(
+      (module) => module.HubConsolidatedTrendChart,
+    ),
+  {
+    ssr: false,
+    loading: () => <div className="h-full w-full skeleton-shimmer rounded-2xl" />,
+  },
+);
 
 function moduleTone(value: number, inverse = false) {
   if (value === 0) {
@@ -137,8 +140,8 @@ export function HubPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="space-y-3">
+      <Card className="liquid-shell overflow-hidden">
+        <CardContent className="space-y-5 p-5 sm:p-6">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="muted">Hub consolidado</Badge>
             <Badge variant={executive.pulse.criticalAlerts > 0 ? "danger" : "default"}>
@@ -147,42 +150,71 @@ export function HubPage() {
                 ? `${executive.pulse.criticalAlerts} alerta(s) crítico(s)`
                 : "Pulso estável"}
             </Badge>
+            <Badge variant="muted">
+              {selectedVehicle ? selectedVehicle.nickname : "Todos os veículos"}
+            </Badge>
           </div>
-          <div className="space-y-1">
-            <h1 className="font-heading text-3xl font-semibold text-zinc-50 sm:text-4xl">
-              O que mais importa está visível em segundos.
-            </h1>
-            <p className="max-w-3xl text-sm leading-6 text-zinc-400 sm:text-base">
-              Use este painel como centro de comando: saldo, pressão do cartão, custo do automóvel,
-              alertas e atalhos para agir rápido no celular ou no desktop.
-            </p>
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="space-y-2">
+              <h1 className="font-heading text-3xl font-semibold text-zinc-50 sm:text-4xl">
+                O que mais importa está visível em segundos.
+              </h1>
+              <p className="max-w-3xl text-sm leading-6 text-zinc-400 sm:text-base">
+                Use este painel como centro de comando: saldo, pressão do cartão, custo do
+                automóvel, alertas e atalhos para agir rápido no celular ou no desktop.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Fechamento</p>
+                  <p className="mt-2 text-sm text-zinc-100">
+                    {executive.finance.projectedCashBalance >= 0
+                      ? "Caixa projetado ainda respira neste período."
+                      : "Caixa projetado já pede atenção neste período."}
+                  </p>
+                </div>
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Automóvel</p>
+                  <p className="mt-2 text-sm text-zinc-100">
+                    {executive.moto.reminders.length
+                      ? `${executive.moto.reminders.length} cuidado(s) ativo(s) no radar.`
+                      : "Sem pendências críticas do automóvel agora."}
+                  </p>
+                </div>
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Atalho</p>
+                  <p className="mt-2 text-sm text-zinc-100">
+                    `Ctrl/Cmd + K` abre o lançamento rápido em qualquer tela.
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
+              <div className="min-w-[220px]">
+                <Select
+                  value={selectedVehicle?.id ?? "all"}
+                  onValueChange={(value) => {
+                    setSelectedVehicleId(value);
+                    updateQuery({ vehicle: value === "all" ? null : value });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escopo do automóvel" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os veículos</SelectItem>
+                    {snapshot.vehicles.map((vehicle) => (
+                      <SelectItem key={vehicle.id} value={vehicle.id}>
+                        {vehicle.nickname}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
+            </div>
           </div>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
-          <div className="min-w-[220px]">
-            <Select
-              value={selectedVehicle?.id ?? "all"}
-              onValueChange={(value) => {
-                setSelectedVehicleId(value);
-                updateQuery({ vehicle: value === "all" ? null : value });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Escopo do automóvel" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os veículos</SelectItem>
-                {snapshot.vehicles.map((vehicle) => (
-                  <SelectItem key={vehicle.id} value={vehicle.id}>
-                    {vehicle.nickname}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
@@ -300,24 +332,14 @@ export function HubPage() {
           description="Receita, gasto operacional e saldo líquido no mesmo trilho."
         >
           <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={consolidatedTrend.map((item) => ({
-                  month: formatMonthShortLabel(item.month),
-                  receita: item.income,
-                  operacional: item.operationalExpense,
-                  saldo: item.net,
-                }))}
-              >
-                <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                <XAxis dataKey="month" stroke="#71717a" />
-                <YAxis stroke="#71717a" />
-                <Tooltip />
-                <Bar dataKey="receita" fill="#10b981" radius={[14, 14, 0, 0]} />
-                <Bar dataKey="operacional" fill="#f59e0b" radius={[14, 14, 0, 0]} />
-                <Bar dataKey="saldo" fill="#06b6d4" radius={[14, 14, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <HubConsolidatedTrendChart
+              data={consolidatedTrend.map((item) => ({
+                month: formatMonthShortLabel(item.month),
+                receita: item.income,
+                operacional: item.operationalExpense,
+                saldo: item.net,
+              }))}
+            />
           </div>
         </ChartCard>
       </div>

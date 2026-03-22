@@ -1,3 +1,5 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 type JsonInit = {
@@ -14,6 +16,7 @@ type RateLimitOptions = {
   max: number;
   windowMs: number;
   identifier?: string;
+  response?: NextResponse;
 };
 
 type RateLimitState = {
@@ -23,6 +26,13 @@ type RateLimitState = {
 
 const DEFAULT_JSON_LIMIT = 1024 * 1024;
 const RATE_LIMIT_STORE_KEY = "__controle_rate_limit_store__";
+const RATE_LIMIT_COOKIE_NAME = "__controle_auth_rate__";
+const RATE_LIMIT_COOKIE_VERSION = 1;
+
+type RateLimitCookiePayload = {
+  v: number;
+  buckets: Record<string, RateLimitState>;
+};
 
 function getRateLimitStore() {
   const globalStore = globalThis as typeof globalThis & {
@@ -34,6 +44,152 @@ function getRateLimitStore() {
   }
 
   return globalStore[RATE_LIMIT_STORE_KEY];
+}
+
+function getRateLimitSecret() {
+  return process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.APP_LOCK_PIN ?? null;
+}
+
+function parseCookieHeader(header: string | null) {
+  if (!header) {
+    return {};
+  }
+
+  return header
+    .split(";")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .reduce<Record<string, string>>((accumulator, cookie) => {
+      const separatorIndex = cookie.indexOf("=");
+      if (separatorIndex <= 0) {
+        return accumulator;
+      }
+
+      const name = cookie.slice(0, separatorIndex).trim();
+      const value = cookie.slice(separatorIndex + 1).trim();
+      accumulator[name] = decodeURIComponent(value);
+      return accumulator;
+    }, {});
+}
+
+function signRateLimitBody(body: string, secret: string) {
+  return createHmac("sha256", secret).update(body).digest("base64url");
+}
+
+function readRateLimitCookie(request: Request) {
+  const secret = getRateLimitSecret();
+  if (!secret) {
+    return null;
+  }
+
+  const cookieValue = parseCookieHeader(request.headers.get("cookie"))[RATE_LIMIT_COOKIE_NAME];
+  if (!cookieValue) {
+    return null;
+  }
+
+  const separatorIndex = cookieValue.lastIndexOf(".");
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  const body = cookieValue.slice(0, separatorIndex);
+  const providedSignature = cookieValue.slice(separatorIndex + 1);
+  const expectedSignature = signRateLimitBody(body, secret);
+
+  const signatureBuffer = Buffer.from(providedSignature);
+  const expectedBuffer = Buffer.from(expectedSignature);
+  if (
+    signatureBuffer.length !== expectedBuffer.length ||
+    !timingSafeEqual(signatureBuffer, expectedBuffer)
+  ) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as RateLimitCookiePayload;
+    if (parsed.v !== RATE_LIMIT_COOKIE_VERSION || !parsed.buckets) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeRateLimitCookie(
+  request: Request,
+  response: NextResponse,
+  identifier: string,
+  state: RateLimitState,
+) {
+  const secret = getRateLimitSecret();
+  if (!secret) {
+    return;
+  }
+
+  const now = Date.now();
+  const currentPayload = readRateLimitCookie(request);
+  const nextBuckets = Object.entries(currentPayload?.buckets ?? {}).reduce<Record<string, RateLimitState>>(
+    (accumulator, [key, value]) => {
+      if (value.resetAt > now) {
+        accumulator[key] = value;
+      }
+      return accumulator;
+    },
+    {},
+  );
+
+  nextBuckets[identifier] = state;
+
+  const entries = Object.entries(nextBuckets)
+    .sort((left, right) => right[1].resetAt - left[1].resetAt)
+    .slice(0, 12);
+  const payload: RateLimitCookiePayload = {
+    v: RATE_LIMIT_COOKIE_VERSION,
+    buckets: Object.fromEntries(entries),
+  };
+  const body = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const signedValue = `${body}.${signRateLimitBody(body, secret)}`;
+  const requestUrl = new URL(request.url);
+
+  response.cookies.set({
+    name: RATE_LIMIT_COOKIE_NAME,
+    value: signedValue,
+    httpOnly: true,
+    sameSite: "lax",
+    secure: requestUrl.protocol === "https:",
+    path: "/",
+    maxAge: Math.max(60, Math.ceil((state.resetAt - now) / 1000)),
+  });
+}
+
+function mergeRateLimitState(
+  memoryState: RateLimitState | undefined,
+  cookieState: RateLimitState | undefined,
+  now: number,
+) {
+  const validStates = [memoryState, cookieState].filter(
+    (value): value is RateLimitState => Boolean(value && value.resetAt > now),
+  );
+
+  if (!validStates.length) {
+    return null;
+  }
+
+  const [firstState, ...otherStates] = validStates;
+
+  return otherStates.reduce<RateLimitState>(
+    (best, current) => ({
+      count: Math.max(best.count, current.count),
+      resetAt: Math.max(best.resetAt, current.resetAt),
+    }),
+    firstState,
+  );
+}
+
+export function resetRateLimitStore() {
+  getRateLimitStore().clear();
 }
 
 export function jsonNoStore(body: unknown, init: JsonInit = {}) {
@@ -134,18 +290,23 @@ export function checkRateLimit(request: Request, options: RateLimitOptions) {
     }
   }
 
-  const current = store.get(identifier);
-  if (!current || current.resetAt <= now) {
-    store.set(identifier, {
+  const current = mergeRateLimitState(store.get(identifier), readRateLimitCookie(request)?.buckets[identifier], now);
+
+  if (!current) {
+    const nextState = {
       count: 1,
       resetAt: now + options.windowMs,
-    });
+    };
+    store.set(identifier, nextState);
+    if (options.response) {
+      writeRateLimitCookie(request, options.response, identifier, nextState);
+    }
     return null;
   }
 
   if (current.count >= options.max) {
     const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
-    return jsonNoStore(
+    const response = jsonNoStore(
       {
         ok: false,
         error: "Muitas tentativas em sequência. Aguarde um pouco e tente novamente.",
@@ -157,9 +318,19 @@ export function checkRateLimit(request: Request, options: RateLimitOptions) {
         },
       },
     );
+    if (options.response) {
+      writeRateLimitCookie(request, response, identifier, current);
+    }
+    return response;
   }
 
-  current.count += 1;
-  store.set(identifier, current);
+  const nextState = {
+    count: current.count + 1,
+    resetAt: current.resetAt,
+  };
+  store.set(identifier, nextState);
+  if (options.response) {
+    writeRateLimitCookie(request, options.response, identifier, nextState);
+  }
   return null;
 }

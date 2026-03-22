@@ -22,6 +22,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { WorkspaceContextList } from "@/components/shared/workspace-context-list";
 import {
   Sheet,
   SheetContent,
@@ -64,6 +65,7 @@ export function AppHeader() {
   const pathname = usePathname();
   const runtimeConfig = useFinanceStore((state) => state.runtimeConfig);
   const syncStatus = useFinanceStore((state) => state.syncStatus);
+  const syncError = useFinanceStore((state) => state.syncError);
   const persistNow = useFinanceStore((state) => state.persistNow);
   const profile = useAuthStore((state) => state.profile);
   const status = useAuthStore((state) => state.status);
@@ -109,6 +111,14 @@ export function AppHeader() {
       };
     }
 
+    if (syncStatus === "queued") {
+      return {
+        label: "Alterações locais",
+        icon: RefreshCw,
+        variant: "muted" as const,
+      };
+    }
+
     if (syncStatus === "synced") {
       return {
         label: "Sincronizado",
@@ -148,11 +158,11 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 border-b border-white/8 bg-black/40 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-white/8 bg-[linear-gradient(180deg,rgba(2,6,23,0.92),rgba(2,6,23,0.72))] backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-4 sm:px-6">
           <div className="min-w-0">
             <Link href="/" prefetch={false} className="inline-flex items-center gap-2">
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-2">
+              <div className="liquid-chip inline-flex rounded-2xl p-2 text-emerald-200">
                 <Sparkles className="size-4 text-emerald-300" />
               </div>
               <div>
@@ -180,7 +190,7 @@ export function AppHeader() {
                 type="button"
                 aria-label="Abrir menu da conta e do workspace"
                 onClick={() => setProfileMenuOpen(true)}
-                className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/6 px-2.5 py-1.5 text-left transition hover:bg-white/10"
+                className="liquid-chip interactive-surface inline-flex items-center gap-3 rounded-full px-2.5 py-1.5 text-left"
               >
                 <div className="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400/80 to-cyan-400/70 text-xs font-semibold text-zinc-950">
                   {initials || "U"}
@@ -205,10 +215,9 @@ export function AppHeader() {
                   key={item.href}
                   href={item.href}
                   prefetch={false}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-                    active
-                      ? "border-emerald-400/30 bg-emerald-400/12 text-emerald-200"
-                      : "border-white/8 bg-white/5 text-zinc-400"
+                  data-active={active}
+                  className={`liquid-chip interactive-surface inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm ${
+                    active ? "text-emerald-200" : "text-zinc-400"
                   }`}
                 >
                   <Icon className="size-3.5" />
@@ -262,63 +271,33 @@ export function AppHeader() {
                     <Users className="size-4 text-zinc-300" />
                     <p className="text-sm font-medium text-zinc-50">Trocar contexto</p>
                   </div>
-                  <div className="mt-3 space-y-2">
-                    {workspaces.map((workspace) => {
-                      const isActive = workspace.id === activeWorkspaceId;
+                  <WorkspaceContextList
+                    className="mt-3 space-y-2"
+                    workspaces={workspaces}
+                    activeWorkspaceId={activeWorkspaceId}
+                    busyWorkspaceId={busyWorkspaceId}
+                    getDescription={(workspace) => getWorkspaceKindLabel(workspace.isPersonal)}
+                    onSelect={async (workspace, isActive) => {
+                      if (isActive) {
+                        return;
+                      }
 
-                      return (
-                        <button
-                          key={workspace.id}
-                          type="button"
-                          aria-pressed={isActive}
-                          disabled={busyWorkspaceId === workspace.id}
-                          className={`w-full rounded-2xl border px-3 py-2 text-left transition ${
-                            isActive
-                              ? "border-emerald-400/30 bg-emerald-400/10"
-                              : "border-white/8 bg-black/20 hover:bg-white/6"
-                          }`}
-                          onClick={async () => {
-                            if (isActive) {
-                              return;
-                            }
-
-                            try {
-                              setBusyWorkspaceId(workspace.id);
-                              await switchWorkspace(workspace.id);
-                              router.refresh();
-                              toast.success(`Contexto alterado para ${workspace.name}.`);
-                            } catch (error) {
-                              toast.error(
-                                error instanceof Error
-                                  ? error.message
-                                  : "Não foi possível trocar de workspace.",
-                              );
-                            } finally {
-                              setBusyWorkspaceId(null);
-                            }
-                          }}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-zinc-100">
-                                {workspace.name}
-                              </p>
-                              <p className="truncate text-xs text-zinc-400">
-                                {getWorkspaceKindLabel(workspace.isPersonal)}
-                              </p>
-                            </div>
-                            <Badge variant={isActive ? "default" : "muted"}>
-                              {isActive
-                                ? "Ativo"
-                                : busyWorkspaceId === workspace.id
-                                  ? "Abrindo..."
-                                  : "Abrir"}
-                            </Badge>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                      try {
+                        setBusyWorkspaceId(workspace.id);
+                        await switchWorkspace(workspace.id);
+                        router.refresh();
+                        toast.success(`Contexto alterado para ${workspace.name}.`);
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error
+                            ? error.message
+                            : "Não foi possível trocar de workspace.",
+                        );
+                      } finally {
+                        setBusyWorkspaceId(null);
+                      }
+                    }}
+                  />
                 </div>
               ) : null}
 
@@ -328,7 +307,10 @@ export function AppHeader() {
                   {runtimeConfig.storageMode === "local"
                     ? "Seus dados estão salvos apenas neste navegador."
                     : syncStatus === "error"
-                      ? "A última tentativa falhou. Seus dados continuam no cache local e podem ser reenviados."
+                      ? syncError ??
+                        "A última tentativa falhou. Seus dados continuam no cache local e podem ser reenviados."
+                      : syncStatus === "queued"
+                        ? "Existem mudanças locais aguardando envio. O app reenvia automaticamente em instantes."
                       : syncStatus === "syncing"
                         ? "As alterações recentes estão sendo enviadas para a nuvem."
                         : "Seu workspace está pronto para continuar no celular e no desktop."}
@@ -341,7 +323,7 @@ export function AppHeader() {
                   className="justify-start rounded-2xl"
                   onClick={async () => {
                     try {
-                      await persistNow();
+                      await persistNow({ immediate: true });
                       toast.success("Sincronização disparada novamente.");
                     } catch (error) {
                       toast.error(

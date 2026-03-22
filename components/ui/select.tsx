@@ -16,7 +16,7 @@ export const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-white/6 px-4 text-sm text-zinc-100 outline-none focus:border-emerald-400/50",
+      "interactive-surface flex h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04))] px-4 text-sm text-zinc-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] outline-none focus:border-emerald-400/50 focus:bg-white/10 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.18),0_18px_42px_-28px_rgba(34,211,238,0.4)]",
       className,
     )}
     {...props}
@@ -40,12 +40,14 @@ export function SelectContent({
       <SelectPrimitive.Content
         position={position}
         className={cn(
-          "z-50 min-w-[8rem] rounded-2xl border border-white/10 bg-zinc-950/95 p-1 shadow-xl",
+          "z-50 max-h-[min(70vh,28rem)] min-w-[8rem] overflow-hidden rounded-2xl border border-white/10 bg-[linear-gradient(180deg,rgba(24,24,27,0.96),rgba(5,10,21,0.98))] p-1 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl",
           className,
         )}
         {...props}
       >
-        <SelectPrimitive.Viewport>{children}</SelectPrimitive.Viewport>
+        <SelectPrimitive.Viewport className="max-h-[min(70vh,28rem)] overflow-y-auto p-1">
+          {children}
+        </SelectPrimitive.Viewport>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
   );
@@ -58,7 +60,7 @@ export const SelectItem = React.forwardRef<
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-xl py-2.5 pl-9 pr-3 text-sm text-zinc-200 outline-none data-[highlighted]:bg-white/8",
+      "interactive-surface relative flex cursor-default select-none items-center rounded-xl py-2.5 pl-9 pr-3 text-sm text-zinc-200 outline-none data-[highlighted]:bg-white/8 data-[highlighted]:text-zinc-50",
       className,
     )}
     {...props}

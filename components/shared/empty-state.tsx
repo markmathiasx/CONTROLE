@@ -15,14 +15,14 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <Card>
+    <Card className="interactive-surface overflow-hidden">
       <CardContent className="flex flex-col items-center gap-3 px-6 py-10 text-center">
-        <div className="rounded-2xl border border-white/10 bg-white/6 p-4">
+        <div className="liquid-chip inline-flex rounded-2xl p-4 text-zinc-200">
           <Icon className="size-6 text-zinc-200" />
         </div>
         <div className="space-y-1">
           <h3 className="font-heading text-lg font-semibold text-zinc-50">{title}</h3>
-          <p className="text-sm text-zinc-400">{description}</p>
+          <p className="max-w-[34rem] text-sm leading-6 text-zinc-400">{description}</p>
         </div>
         {action ? <div className="pt-1">{action}</div> : null}
       </CardContent>

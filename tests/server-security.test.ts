@@ -1,10 +1,18 @@
+import { NextResponse } from "next/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { checkRateLimit, enforceSameOrigin, parseJsonBody } from "@/lib/server-security";
+import {
+  checkRateLimit,
+  enforceSameOrigin,
+  parseJsonBody,
+  resetRateLimitStore,
+} from "@/lib/server-security";
 
 describe("server security helpers", () => {
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
+    resetRateLimitStore();
   });
 
   it("aceita origem igual ao host atual", () => {
@@ -85,5 +93,50 @@ describe("server security helpers", () => {
     if (!parsed.ok) {
       expect(parsed.response.status).toBe(413);
     }
+  });
+
+  it("reforça o rate limit com cookie assinado entre requests", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-14T12:00:00Z"));
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "service-role-test-secret");
+
+    const firstResponse = NextResponse.json({ ok: true });
+    const firstRequest = new Request("https://app.example.com/api/auth/login", {
+      headers: {
+        "x-forwarded-for": "1.2.3.4",
+      },
+    });
+
+    expect(
+      checkRateLimit(firstRequest, {
+        key: "test-cookie-login",
+        max: 1,
+        windowMs: 60_000,
+        response: firstResponse,
+      }),
+    ).toBeNull();
+
+    resetRateLimitStore();
+
+    const cookie = firstResponse.headers.get("set-cookie");
+    const blocked = checkRateLimit(
+      new Request("https://app.example.com/api/auth/login", {
+        headers: {
+          cookie: cookie ?? "",
+          "x-forwarded-for": "1.2.3.4",
+        },
+      }),
+      {
+        key: "test-cookie-login",
+        max: 1,
+        windowMs: 60_000,
+        response: NextResponse.json({ ok: true }),
+      },
+    );
+
+    const payload = (await blocked?.json()) as { ok?: boolean; error?: string };
+
+    expect(blocked?.status).toBe(429);
+    expect(payload.ok).toBe(false);
   });
 });

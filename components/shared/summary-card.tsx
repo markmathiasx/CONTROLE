@@ -22,12 +22,13 @@ export function SummaryCard({
   className?: string;
 }) {
   return (
-    <Card className={cn("overflow-hidden", className)}>
+    <Card className={cn("interactive-surface overflow-hidden", className)}>
       <CardContent className="relative p-5">
         <div className={cn("absolute inset-0 bg-gradient-to-br opacity-80", accent)} />
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
         <div className="relative space-y-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="rounded-2xl border border-white/10 bg-black/20 p-3">
+            <div className="liquid-chip inline-flex rounded-2xl p-3 text-zinc-50">
               <Icon className="size-5 text-zinc-50" />
             </div>
             {badge ? <Badge variant={badge.tone}>{badge.text}</Badge> : null}
@@ -37,6 +38,7 @@ export function SummaryCard({
             <h3 className="font-heading text-2xl font-semibold text-zinc-50">{value}</h3>
             {detail ? <p className="text-sm text-zinc-300">{detail}</p> : null}
           </div>
+          <div className="h-px w-full bg-gradient-to-r from-white/10 via-white/4 to-transparent" />
         </div>
       </CardContent>
     </Card>

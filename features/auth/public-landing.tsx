@@ -9,16 +9,16 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export function PublicLanding() {
   return (
-    <div className="aurora-hero mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-6xl items-center px-4 py-12 sm:px-6">
+    <div className="aurora-hero app-backdrop-grid mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-6xl items-center px-4 py-12 sm:px-6">
       <div className="grid w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
           <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-200">
+            <div className="liquid-chip inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-emerald-200">
               <Cloud className="size-4" />
               Agora com conta, sessão e sync em nuvem
             </div>
             <RuntimeModeBadge />
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-100">
+            <div className="liquid-chip inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm text-cyan-100">
               <Sparkles className="size-4" />
               UI premium mobile-first 2026
             </div>
@@ -28,8 +28,8 @@ export function PublicLanding() {
               Seu hub financeiro e do automóvel com a mesma conta no celular e no PC.
             </h1>
             <p className="max-w-2xl text-base text-zinc-400 sm:text-lg">
-              Entre com sua conta para sincronizar finanças e operação do automóvel em tempo real,
-              sem perder o fallback local quando precisar.
+              Entre com sua conta para recuperar seus próprios gastos, veículos, cartões e contas em
+              tempo real, sem perder o fallback local quando precisar.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
@@ -45,15 +45,15 @@ export function PublicLanding() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="glass-panel premium-hover rounded-2xl p-4">
+            <div className="liquid-card premium-hover rounded-2xl p-4">
               <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Sync</p>
               <p className="mt-2 text-sm text-zinc-200">Mudou em um dispositivo, apareceu no outro.</p>
             </div>
-            <div className="glass-panel premium-hover rounded-2xl p-4">
+            <div className="liquid-card premium-hover rounded-2xl p-4">
               <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Fallback</p>
               <p className="mt-2 text-sm text-zinc-200">Sem env ou sem rede, continua em modo local.</p>
             </div>
-            <div className="glass-panel premium-hover rounded-2xl p-4">
+            <div className="liquid-card premium-hover rounded-2xl p-4">
               <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Segurança</p>
               <p className="mt-2 text-sm text-zinc-200">RLS por workspace e sessão real por cookie.</p>
             </div>
@@ -85,7 +85,7 @@ export function PublicLanding() {
           ].map((item) => {
             const Icon = item.icon;
             return (
-              <Card key={item.title} className="glass-panel premium-hover">
+              <Card key={item.title} className="liquid-card premium-hover">
                 <CardContent className="space-y-4 p-5">
                   <div className="inline-flex rounded-2xl border border-white/10 bg-white/6 p-3 text-emerald-200">
                     <Icon className="size-5" />

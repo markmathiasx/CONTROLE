@@ -92,14 +92,21 @@ export function LoginPage() {
   }
 
   return (
-    <div className="aurora-hero mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-5xl items-center justify-center px-4 py-10 sm:px-6">
+    <div className="aurora-hero app-backdrop-grid mx-auto flex min-h-[calc(100vh-6rem)] w-full max-w-6xl items-center justify-center px-4 py-10 sm:px-6">
       <div className="grid w-full gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <Card className="glass-panel premium-hover">
+        <Card className="liquid-shell premium-hover surface-animate">
           <CardHeader>
-            <RuntimeModeBadge />
+            <div className="flex flex-wrap items-center gap-2">
+              <RuntimeModeBadge />
+              <div className="liquid-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-cyan-100">
+                <ShieldCheck className="size-3.5" />
+                Cada conta recupera seus próprios dados
+              </div>
+            </div>
             <CardTitle>Entrar</CardTitle>
             <CardDescription>
-              Use seu login ou e-mail para abrir o mesmo workspace no celular e no desktop.
+              Use seu login ou e-mail para abrir seu controle financeiro, carros, motos, cartões e
+              contas no celular e no desktop com a mesma sessão.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -112,7 +119,11 @@ export function LoginPage() {
               </div>
             ) : (
               <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-4 text-sm text-cyan-100">
-                Conta obrigatória neste ambiente: crie seu usuário em <Link href="/cadastro" className="font-semibold underline underline-offset-4">/cadastro</Link> para acessar o hub.
+                Conta obrigatória neste ambiente: crie seu usuário em{" "}
+                <Link href="/cadastro" className="font-semibold underline underline-offset-4">
+                  /cadastro
+                </Link>{" "}
+                para acessar seu workspace pessoal e sincronizado.
               </div>
             )}
 
@@ -183,7 +194,7 @@ export function LoginPage() {
               </Link>
             </p>
 
-            <div className="rounded-2xl border border-white/8 bg-white/5 p-3">
+            <div className="liquid-card rounded-2xl p-3">
               <p className="flex items-center gap-2 text-xs text-zinc-300">
                 <ShieldCheck className="size-4 text-emerald-300" />
                 Sessão protegida por cookie seguro e políticas de acesso por workspace.
@@ -192,24 +203,42 @@ export function LoginPage() {
           </CardContent>
         </Card>
 
-        <Card className="glass-panel float-soft border-emerald-400/20 bg-[linear-gradient(180deg,rgba(16,185,129,0.12),rgba(9,9,11,0.96))]">
+        <Card className="liquid-shell float-soft border-emerald-400/20 bg-[linear-gradient(180deg,rgba(16,185,129,0.12),rgba(5,10,21,0.98))]">
           <CardContent className="space-y-5 p-6">
-            <p className="text-sm uppercase tracking-[0.28em] text-emerald-200/80">Cloud mode</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm uppercase tracking-[0.28em] text-emerald-200/80">Cloud mode</p>
+              <div className="liquid-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs text-zinc-100">
+                <LogIn className="size-3.5" />
+                Multiusuário preparado
+              </div>
+            </div>
             <h1 className="font-heading text-3xl font-semibold text-zinc-50">
-              Tudo sincronizado, sem abandonar o jeito rápido de usar no celular.
+              Login obrigatório quando a nuvem está ativa, sem perder a sensação de app rápido.
             </h1>
             <p className="text-sm leading-6 text-zinc-300">
-              Depois do login, o app mantém o cache local para velocidade, sincroniza com a nuvem e
-              ainda pode importar seus dados antigos deste aparelho.
+              Cada conta ganha um workspace pessoal próprio. O app mantém cache local para
+              velocidade, sincroniza na nuvem e ainda pode importar os dados antigos deste aparelho
+              sem misturar com o de outras pessoas.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/8 bg-white/6 p-3">
+              <div className="liquid-card rounded-2xl p-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Login único</p>
-                <p className="mt-2 text-sm text-zinc-200">Acesse por login ou e-mail no mesmo campo.</p>
+                <p className="mt-2 text-sm text-zinc-200">
+                  Acesse por login ou e-mail no mesmo campo, com sessão persistente.
+                </p>
               </div>
-              <div className="rounded-2xl border border-white/8 bg-white/6 p-3">
+              <div className="liquid-card rounded-2xl p-3">
+                <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Dados isolados</p>
+                <p className="mt-2 text-sm text-zinc-200">
+                  Cada pessoa vê apenas os próprios gastos, veículos, cartões e contas.
+                </p>
+              </div>
+              <div className="liquid-card rounded-2xl p-3 sm:col-span-2">
                 <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">Resiliência</p>
-                <p className="mt-2 text-sm text-zinc-200">Sem internet, o cache local protege sua sessão de trabalho.</p>
+                <p className="mt-2 text-sm text-zinc-200">
+                  Sem internet, o cache local protege sua sessão de trabalho até a próxima
+                  sincronização.
+                </p>
               </div>
             </div>
           </CardContent>

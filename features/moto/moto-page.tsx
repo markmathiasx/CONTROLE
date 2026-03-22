@@ -162,43 +162,76 @@ export function MotoPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-1">
-          <p className="text-sm uppercase tracking-[0.28em] text-zinc-500">Automóvel</p>
-          <h1 className="font-heading text-3xl font-semibold text-zinc-50">
-            {selectedVehicle
-              ? `${selectedVehicle.nickname} • ${selectedVehicle.brand} ${selectedVehicle.model} ${selectedVehicle.year}`
-              : "Todos os veículos"}
-          </h1>
-          <p className="text-sm text-zinc-400">
-            Custos, litros, serviços e obrigações anuais no mesmo painel.
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row lg:items-center">
-          <div className="min-w-[220px]">
-            <Select
-              value={resolvedVehicleScope}
-              onValueChange={(value) => {
-                setSelectedVehicleId(value);
-                updateQuery({ vehicle: value === "all" ? null : value });
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Escolha um veículo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os veículos</SelectItem>
-                {snapshot.vehicles.map((vehicle) => (
-                  <SelectItem key={vehicle.id} value={vehicle.id}>
-                    {vehicle.nickname}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <Card className="liquid-shell overflow-hidden">
+        <CardContent className="space-y-5 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="muted">Automóvel</Badge>
+            <Badge variant={summary.reminders.some((item) => item.isOverdue) ? "danger" : "default"}>
+              {summary.reminders.some((item) => item.isOverdue) ? "Com pendências" : "Em dia"}
+            </Badge>
+            <Badge variant="muted">{selectedVehicle ? vehicleTypeLabel : "Visão consolidada"}</Badge>
           </div>
-          <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
-        </div>
-      </div>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <h1 className="font-heading text-3xl font-semibold text-zinc-50">
+                {selectedVehicle
+                  ? `${selectedVehicle.nickname} • ${selectedVehicle.brand} ${selectedVehicle.model} ${selectedVehicle.year}`
+                  : "Todos os veículos"}
+              </h1>
+              <p className="text-sm text-zinc-400">
+                Custos, litros, serviços e obrigações anuais no mesmo painel.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Combustível</p>
+                  <p className="mt-2 text-sm text-zinc-100">
+                    {summary.fuelLogsCount} registro(s) no período com {summary.fuelLiters} L.
+                  </p>
+                </div>
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Reserva</p>
+                  <p className="mt-2 text-sm text-zinc-100">
+                    Separe {formatCurrencyBRL(summary.monthlyReserveTarget)} por mês para IPVA,
+                    seguro e licenciamento.
+                  </p>
+                </div>
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Meta de uso</p>
+                  <p className="mt-2 text-sm text-zinc-100">
+                    {selectedVehicle?.monthlyDistanceGoalKm
+                      ? `${selectedVehicle.monthlyDistanceGoalKm} km/mês configurados para este veículo.`
+                      : "Defina uma meta mensal para melhorar a projeção de custo."}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row lg:items-center">
+              <div className="min-w-[220px]">
+                <Select
+                  value={resolvedVehicleScope}
+                  onValueChange={(value) => {
+                    setSelectedVehicleId(value);
+                    updateQuery({ vehicle: value === "all" ? null : value });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Escolha um veículo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os veículos</SelectItem>
+                    {snapshot.vehicles.map((vehicle) => (
+                      <SelectItem key={vehicle.id} value={vehicle.id}>
+                        {vehicle.nickname}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <SummaryCard

@@ -10,9 +10,9 @@ export function PageSkeleton({
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <div className="h-3 w-32 animate-pulse rounded-full bg-white/8" />
-        <div className="h-10 w-[min(30rem,85%)] animate-pulse rounded-full bg-white/10" />
-        <div className="h-4 w-[min(38rem,92%)] animate-pulse rounded-full bg-white/8" />
+        <div className="skeleton-shimmer h-3 w-32 rounded-full bg-white/8" />
+        <div className="skeleton-shimmer h-10 w-[min(30rem,85%)] rounded-full bg-white/10" />
+        <div className="skeleton-shimmer h-4 w-[min(38rem,92%)] rounded-full bg-white/8" />
       </div>
 
       <div
@@ -31,12 +31,12 @@ export function PageSkeleton({
             key={index}
             className="rounded-[28px] border border-white/8 bg-white/6 p-5 shadow-[0_24px_80px_-48px_rgba(0,0,0,1)]"
           >
-            <div className="mb-5 h-5 w-40 animate-pulse rounded-full bg-white/10" />
+            <div className="skeleton-shimmer mb-5 h-5 w-40 rounded-full bg-white/10" />
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((__, innerIndex) => (
                 <div
                   key={innerIndex}
-                  className="h-14 animate-pulse rounded-2xl bg-black/25"
+                  className="skeleton-shimmer h-14 rounded-2xl bg-black/25"
                 />
               ))}
             </div>

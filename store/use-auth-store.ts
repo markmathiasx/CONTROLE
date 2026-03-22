@@ -375,7 +375,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
       });
 
       if (!remoteSnapshot || baseSnapshot.meta.dirty) {
-        void financeStore.persistNow();
+        void financeStore.persistNow({ immediate: true });
       }
 
       const localDecision = getLocalImportDecision(authContext.profile.id);
@@ -411,10 +411,14 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
         activeWorkspaceId,
         (snapshot) => {
           const currentSnapshot = useFinanceStore.getState().snapshot;
+          const currentUpdatedAt = currentSnapshot
+            ? new Date(currentSnapshot.meta.updatedAt).getTime()
+            : 0;
+          const incomingUpdatedAt = new Date(snapshot.meta.updatedAt).getTime();
           if (
             currentSnapshot &&
             currentSnapshot.meta.dirty &&
-            currentSnapshot.version >= snapshot.version
+            (currentUpdatedAt >= incomingUpdatedAt || currentSnapshot.version >= snapshot.version)
           ) {
             return;
           }
@@ -430,8 +434,11 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
             syncStatus: "synced",
           });
         },
-        () => {
-          useFinanceStore.getState().setSyncStatus("error");
+        (error) => {
+          useFinanceStore.setState({
+            syncStatus: "error",
+            syncError: error.message,
+          });
         },
       );
     } catch (error) {
@@ -511,7 +518,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
       userId: profile.id,
       syncStatus: runtimeConfig.storageMode === "supabase" ? "syncing" : "local",
     });
-    await financeStore.persistNow();
+    await financeStore.persistNow({ immediate: true });
 
     set((current) => ({
       onboardingOpen: false,
@@ -628,7 +635,7 @@ export const useAuthStore = create<AuthStoreState>((set, get) => ({
         userId: nextProfile.id,
         syncStatus: runtimeConfig.storageMode === "supabase" ? "syncing" : "local",
       });
-      await useFinanceStore.getState().persistNow();
+      await useFinanceStore.getState().persistNow({ immediate: true });
     }
 
     set({ profile: nextProfile });

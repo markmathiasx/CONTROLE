@@ -20,6 +20,7 @@ import { toast } from "sonner";
 
 import { PageSkeleton } from "@/components/shared/page-skeleton";
 import { SummaryCard } from "@/components/shared/summary-card";
+import { WorkspaceContextList } from "@/components/shared/workspace-context-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -640,65 +641,37 @@ export function SettingsPage() {
               <CardTitle>Workspaces e troca de contexto</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-3">
-                {workspaces.map((workspace) => {
+              <WorkspaceContextList
+                className="space-y-3"
+                workspaces={workspaces}
+                activeWorkspaceId={activeWorkspaceId}
+                busyWorkspaceId={
+                  busyAction?.startsWith("switch:") ? busyAction.replace("switch:", "") : null
+                }
+                getDescription={(workspace) => {
                   const role = membershipByWorkspaceId[workspace.id] ?? "owner";
-                  const isActive = workspace.id === activeWorkspaceId;
+                  return `${getWorkspaceKindLabel(workspace.isPersonal)} • ${memberRoleLabels[role]}`;
+                }}
+                onSelect={async (workspace, isActive) => {
+                  if (isActive) {
+                    return;
+                  }
 
-                  return (
-                    <button
-                      key={workspace.id}
-                      type="button"
-                      aria-pressed={isActive}
-                      className={`w-full rounded-[26px] border px-4 py-3 text-left transition ${
-                        isActive
-                          ? "border-emerald-400/30 bg-emerald-400/10"
-                          : "border-white/8 bg-white/6 hover:bg-white/10"
-                      }`}
-                      onClick={async () => {
-                        if (isActive) {
-                          return;
-                        }
-
-                        try {
-                          setBusyAction(`switch:${workspace.id}`);
-                          await switchWorkspace(workspace.id);
-                          toast.success(`Contexto alterado para ${workspace.name}.`);
-                        } catch (error) {
-                          toast.error(
-                            error instanceof Error
-                              ? error.message
-                              : "Não foi possível trocar de workspace agora.",
-                          );
-                        } finally {
-                          setBusyAction(null);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-zinc-50">{workspace.name}</p>
-                          <p className="mt-1 text-sm text-zinc-400">
-                            {getWorkspaceKindLabel(workspace.isPersonal)} • {memberRoleLabels[role]}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={workspace.isPersonal ? "muted" : "default"}>
-                            {workspace.isPersonal ? "Pessoal" : "Compartilhado"}
-                          </Badge>
-                          {isActive ? (
-                            <Badge variant="default">Ativo</Badge>
-                          ) : (
-                            <Badge variant="muted">
-                              {busyAction === `switch:${workspace.id}` ? "Abrindo..." : "Abrir"}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                  try {
+                    setBusyAction(`switch:${workspace.id}`);
+                    await switchWorkspace(workspace.id);
+                    toast.success(`Contexto alterado para ${workspace.name}.`);
+                  } catch (error) {
+                    toast.error(
+                      error instanceof Error
+                        ? error.message
+                        : "Não foi possível trocar de workspace agora.",
+                    );
+                  } finally {
+                    setBusyAction(null);
+                  }
+                }}
+              />
 
               {activeWorkspace ? (
                 <div className="rounded-[28px] border border-white/8 bg-white/6 p-4">

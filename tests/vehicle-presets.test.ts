@@ -61,6 +61,19 @@ describe("vehicle presets", () => {
     expect(findVehiclePreset("Honda", "CG 125 Titan", 1999)?.id).toBe("br-honda-cg-125-titan");
   });
 
+  it("inclui motos de alta cilindrada e modelos esportivos pedidos", () => {
+    expect(findVehiclePreset("Honda", "CB 600F Hornet", 2012)?.id).toBe(
+      "br-honda-cb-600f-hornet",
+    );
+    expect(findVehiclePreset("Suzuki", "GSX1300R Hayabusa", 2024)?.id).toBe(
+      "br-suzuki-gsx1300r-hayabusa",
+    );
+    expect(findVehiclePreset("BMW", "S 1000 XR", 2024)?.id).toBe("br-bmw-s-1000-xr");
+    expect(findVehiclePreset("Kawasaki", "Ninja ZX-10R", 2025)?.id).toBe(
+      "br-kawasaki-ninja-zx-10r",
+    );
+  });
+
   it("expõe catálogo familiar sem esconder modelos legados por padrão", () => {
     const familyCatalog = getVehicleCatalogPresetOptions({ vehicleType: "all", year: "all" });
     const brands = getVehiclePresetBrandOptions({ vehicleType: "all", year: "all", catalogOnly: true });

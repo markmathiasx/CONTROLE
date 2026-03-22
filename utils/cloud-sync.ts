@@ -136,6 +136,7 @@ export function hasAnonymousLocalChanges(snapshot: WorkspaceSnapshot | null) {
 export function createCloudSeedSnapshot(context: RebaseContext) {
   return createSeedSnapshot({
     storageMode: context.storageMode,
+    seedMode: "empty",
     workspaceId: context.workspaceId,
     workspaceName: context.workspaceName,
     userId: context.userId,

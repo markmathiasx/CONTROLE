@@ -1,13 +1,13 @@
 {
   "name": "controle-financeiro-pwa",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "private": true,
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint .",
-    "typecheck": "next typegen && tsc --noEmit",
+    "typecheck": "node scripts/typecheck.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

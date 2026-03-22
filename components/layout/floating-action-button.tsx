@@ -97,9 +97,12 @@ export function FloatingActionButton() {
   return (
     <div ref={containerRef} className="fixed bottom-24 right-5 z-40 flex flex-col items-end gap-2 sm:right-8">
       {speedDialOpen ? (
+        <div className="pointer-events-none fixed inset-0 -z-10 bg-black/20 backdrop-blur-[1px]" />
+      ) : null}
+      {speedDialOpen ? (
         <div
           id="quick-actions-speed-dial"
-          className="flex w-[16.5rem] flex-col gap-2 rounded-[2rem] border border-white/10 bg-black/80 p-3 shadow-[0_24px_80px_-30px_rgba(16,185,129,1)] backdrop-blur-xl"
+          className="liquid-shell flex w-[16.75rem] flex-col gap-2 rounded-[2rem] p-3 shadow-[0_24px_80px_-30px_rgba(16,185,129,1)] backdrop-blur-xl"
         >
           {quickActions.map((item) => {
             const Icon = item.icon;
@@ -138,6 +141,10 @@ export function FloatingActionButton() {
           })}
         </div>
       ) : null}
+
+      <div className="hidden rounded-full border border-white/10 bg-black/45 px-3 py-1 text-[11px] uppercase tracking-[0.24em] text-zinc-400 backdrop-blur md:block">
+        Ações rápidas
+      </div>
 
       <Button
         size="icon"

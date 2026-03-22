@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createCloudSeedSnapshot,
   mergeWorkspaceSnapshots,
   pickPreferredWorkspaceSnapshot,
   rebaseSnapshotForWorkspace,
@@ -11,6 +12,7 @@ describe("cloud sync helpers", () => {
   it("prefere o cache local quando ele está dirty", () => {
     const remote = createSeedSnapshot({
       storageMode: "supabase",
+      seedMode: "demo",
       workspaceId: "workspace_cloud",
       userId: "user_cloud",
       username: "mark",
@@ -66,9 +68,30 @@ describe("cloud sync helpers", () => {
     expect(rebased.meta.dirty).toBe(true);
   });
 
+  it("cria workspace cloud limpo para novos logins", () => {
+    const cloudSeed = createCloudSeedSnapshot({
+      storageMode: "supabase",
+      workspaceId: "workspace_clean",
+      workspaceName: "Conta limpa",
+      userId: "user_clean",
+      username: "userclean",
+      displayName: "User Clean",
+      email: "clean@example.com",
+      migrationOrigin: "cloud-seed",
+    });
+
+    expect(cloudSeed.transactions).toHaveLength(0);
+    expect(cloudSeed.incomes).toHaveLength(0);
+    expect(cloudSeed.vehicles).toHaveLength(0);
+    expect(cloudSeed.cards).toHaveLength(0);
+    expect(cloudSeed.settings.salaryMonthly).toBe(0);
+    expect(cloudSeed.settings.vrMonthly).toBe(0);
+  });
+
   it("mescla snapshots deduplicando categorias e transações equivalentes", () => {
     const base = createSeedSnapshot({
       storageMode: "supabase",
+      seedMode: "demo",
       workspaceId: "workspace_real",
       userId: "user_real",
       username: "markreal",

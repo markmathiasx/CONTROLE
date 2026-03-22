@@ -31,6 +31,7 @@ type SeedContext =
   | "supabase"
   | {
       storageMode: "local" | "supabase";
+      seedMode?: "demo" | "empty";
       workspaceId?: string;
       workspaceName?: string;
       userId?: string;
@@ -51,6 +52,11 @@ export function createSeedSnapshot(input: SeedContext): WorkspaceSnapshot {
   const context = typeof input === "string" ? { storageMode: input } : input;
   const now = timestamp();
   const storageMode = context.storageMode;
+  const seedMode =
+    typeof input === "string"
+      ? "demo"
+      : context.seedMode ?? (context.storageMode === "supabase" ? "empty" : "demo");
+  const includeSampleData = seedMode === "demo";
   const workspaceId = context.workspaceId ?? "workspace_home";
   const workspaceName = context.workspaceName ?? appName;
   const userId = context.userId ?? "user_owner";
@@ -1167,8 +1173,8 @@ export function createSeedSnapshot(input: SeedContext): WorkspaceSnapshot {
     currency: "BRL",
     locale: "pt-BR",
     theme: "dark",
-    salaryMonthly: 2000,
-    vrMonthly: 800,
+    salaryMonthly: includeSampleData ? 2000 : 0,
+    vrMonthly: includeSampleData ? 800 : 0,
     salaryDay: 5,
     vrDay: 3,
     activeCenterIds: costCenters.map((center) => center.id),
@@ -1205,22 +1211,22 @@ export function createSeedSnapshot(input: SeedContext): WorkspaceSnapshot {
     },
     costCenters,
     categories,
-    cards,
-    transactions,
-    installments,
-    incomes,
-    budgets,
-    recurrences,
-    vehicles,
-    fuelLogs,
-    maintenanceLogs,
+    cards: includeSampleData ? cards : [],
+    transactions: includeSampleData ? transactions : [],
+    installments: includeSampleData ? installments : [],
+    incomes: includeSampleData ? incomes : [],
+    budgets: includeSampleData ? budgets : [],
+    recurrences: includeSampleData ? recurrences : [],
+    vehicles: includeSampleData ? vehicles : [],
+    fuelLogs: includeSampleData ? fuelLogs : [],
+    maintenanceLogs: includeSampleData ? maintenanceLogs : [],
     operationalSettings,
-    filamentSpools,
-    supplyItems,
-    stockMovements,
-    productionJobs,
-    productionMaterialUsages,
-    storeOrders,
+    filamentSpools: includeSampleData ? filamentSpools : [],
+    supplyItems: includeSampleData ? supplyItems : [],
+    stockMovements: includeSampleData ? stockMovements : [],
+    productionJobs: includeSampleData ? productionJobs : [],
+    productionMaterialUsages: includeSampleData ? productionMaterialUsages : [],
+    storeOrders: includeSampleData ? storeOrders : [],
     settings,
     meta: {
       schemaVersion,

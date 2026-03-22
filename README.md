@@ -1,22 +1,24 @@
 # Controle Financeiro MMSVH
 
-Hub pessoal em `pt-BR` para `Financeiro` e `Automóvel`, agora com autenticação real por Supabase Auth, sincronização em nuvem por workspace e fallback local preservado. O app continua mobile-first, PWA e pronto para uso no celular e no desktop com a mesma conta.
+Hub pessoal em `pt-BR` para `Financeiro` e `Automóvel`, com autenticação real por Supabase Auth, sincronização em nuvem por workspace e fallback local preservado. O app continua mobile-first, PWA e pronto para uso no celular e no desktop com a mesma conta.
 
 ## O que existe no app
 
 - `Resumo`: hub consolidado com visão geral do financeiro e do automóvel
 - `Financeiro`: saldo do mês, VR, cartão, parcelas, transações, categorias, orçamentos e relatórios
-- `Moto`: abastecimentos, manutenções, custo mensal e próximos cuidados
-- `Loja`: base antiga preservada no snapshot, mas removida da navegação principal da versão atual
+- `Automóvel`: abastecimentos, manutenções, custo mensal, custos fixos anuais e próximos cuidados
+- `Workspaces`: contexto pessoal e compartilhado preparado para uso futuro em casal
 - `Auth + Cloud`: login, cadastro, logout, sessão persistente, rotas protegidas, cache local e sync por workspace
 - `IA opcional`: leitura financeira comentada no relatório, server-side only, sem chave no client
 
 ### Polimento UX recente
 
 - telas de login/cadastro com validações reforçadas, toggle de senha e feedback de força
-- catálogo com filtros rápidos por chips, quick view e carrinho persistente
+- quick add com interpretação assistida, rascunho persistido e atalhos globais
+- troca de workspace consistente entre header e configurações
 - painéis flutuantes com auto-recolhimento por inatividade para reduzir poluição visual
 - refinamentos visuais com camadas glass/aurora e microinterações mobile-first
+- sincronização menos agressiva, com cache local imediato e envio em lote para a nuvem
 
 ## Stack
 
@@ -54,7 +56,7 @@ tests/                testes unitários
 
 ### Snapshot do domínio
 
-Finanças, moto e loja continuam em um `workspace_snapshot` versionado com `schemaVersion = 3`.
+Finanças, automóvel e dados legados continuam em um `workspace_snapshot` versionado com `schemaVersion = 3`.
 
 Isso inclui:
 
@@ -64,6 +66,11 @@ Isso inclui:
 - `filamentSpools`, `supplyItems`, `stockMovements`
 - `productionJobs`, `productionMaterialUsages`, `storeOrders`
 - `settings`, `operationalSettings` e metadados de migração/sync
+
+Observação:
+
+- a camada de `Loja` continua preservada no snapshot por compatibilidade, mas saiu da navegação principal atual
+- as rotas `/loja/*` existentes redirecionam para o financeiro nesta versão
 
 Snapshots antigos `v1` e `v2` são migrados automaticamente.
 
@@ -136,9 +143,10 @@ Se `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `SUPABASE_SERVI
 - o acesso ao app passa a exigir conta (`/` redireciona para `/login` sem sessão)
 - o usuário autenticado recebe um workspace pessoal automaticamente
 - o app sincroniza o snapshot do workspace com o Supabase
-- o cache local continua existindo para velocidade e recuperação
+- o cache local continua existindo para velocidade, recuperação e uso resiliente
 - o status visual mostra `Sincronizando`, `Sincronizado` ou `Erro de sync`
 - quando a conexão oscila, o app tenta retomar a sincronização automaticamente em foco, reconexão e intervalos curtos
+- alterações frequentes são agrupadas antes do envio para evitar gravação excessiva no celular
 
 ## Configurando Supabase
 

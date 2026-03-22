@@ -95,7 +95,11 @@ export const localDbAdapter = {
       return;
     }
 
-    await setItem(key, snapshot);
+    try {
+      await setItem(key, snapshot);
+    } catch {
+      // The localStorage mirror keeps the app usable when IndexedDB is unstable or full.
+    }
   },
 
   async clear(key = localSnapshotKey) {
@@ -106,7 +110,11 @@ export const localDbAdapter = {
       return;
     }
 
-    await deleteItem(key);
+    try {
+      await deleteItem(key);
+    } catch {
+      // If IndexedDB cleanup fails, the localStorage mirror is already cleared above.
+    }
   },
 
   async migrateFromLegacyLocalStorage() {

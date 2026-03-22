@@ -1707,6 +1707,7 @@ export function getMotoDashboardSummary(snapshot: WorkspaceSnapshot, monthKey: s
     isFleet: fuel.isFleet,
     scopeLabel: fuel.scopeLabel,
     fuelCost: fuel.totalCost,
+    fuelLogsCount: fuel.logs.length,
     fuelLiters: fuel.totalLiters,
     averagePricePerLiter: fuel.averagePricePerLiter,
     averageTicket: fuel.averageTicket,

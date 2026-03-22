@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 
@@ -27,6 +28,7 @@ export function AppShell({
   const authStatus = useAuthStore((state) => state.status);
   const authInitialized = useAuthStore((state) => state.initialized);
   const quickAddOpen = useFinanceStore((state) => state.quickAddOpen);
+  const setQuickAddOpen = useFinanceStore((state) => state.setQuickAddOpen);
 
   const isAuthRoute = ["/unlock", "/login", "/cadastro", "/logout"].some((route) =>
     pathname.startsWith(route),
@@ -37,12 +39,45 @@ export function AppShell({
     (isAuthRoute || pathname === "/") &&
     (!authInitialized || authStatus !== "authenticated");
 
+  React.useEffect(() => {
+    if (isAuthRoute || isPrintRoute || shouldRenderPublicShellLess) {
+      return;
+    }
+
+    const handler = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      const isTypingTarget =
+        target?.isContentEditable ||
+        tagName === "input" ||
+        tagName === "textarea" ||
+        tagName === "select";
+
+      if (isTypingTarget) {
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setQuickAddOpen(true);
+      }
+
+      if (event.altKey && event.key.toLowerCase() === "n") {
+        event.preventDefault();
+        setQuickAddOpen(true);
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [isAuthRoute, isPrintRoute, setQuickAddOpen, shouldRenderPublicShellLess]);
+
   if (isAuthRoute || isPrintRoute || shouldRenderPublicShellLess) {
     return <>{children}</>;
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,#052e2b_0%,rgba(5,46,43,0.35)_20%,transparent_45%),radial-gradient(circle_at_bottom_right,rgba(8,145,178,0.18),transparent_34%),#030712]">
+    <div className="app-backdrop-grid min-h-screen bg-[radial-gradient(circle_at_top,#052e2b_0%,rgba(5,46,43,0.35)_20%,transparent_45%),radial-gradient(circle_at_bottom_right,rgba(8,145,178,0.18),transparent_34%),#030712]">
       <a href="#app-shell-main" className="skip-link">
         Pular para o conteúdo principal
       </a>

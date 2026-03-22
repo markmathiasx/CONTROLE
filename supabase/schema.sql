@@ -57,7 +57,7 @@ create table if not exists public.workspace_snapshots (
   data jsonb not null,
   version integer not null default 1,
   schema_version integer not null default 3,
-  app_version text not null default '0.3.0',
+  app_version text not null default '0.3.2',
   migration_origin text,
   imported_at timestamptz,
   last_synced_by uuid references public.profiles(id) on delete set null,

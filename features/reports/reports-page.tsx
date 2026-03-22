@@ -331,18 +331,81 @@ export function ReportsPage() {
     automationFeed,
     printableReport,
   } = reportData;
+  const reportLeader = printableReport.topCategories[0] ?? null;
+  const reportNeedsAttention = printableReport.net < 0 || (reportLeader?.share ?? 0) >= 22;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-1">
-          <p className="text-sm uppercase tracking-[0.28em] text-zinc-500">Relatórios úteis</p>
-          <h1 className="font-heading text-3xl font-semibold text-zinc-50">
-            Financeiro, automóvel e consolidado sem misturar tudo.
-          </h1>
-        </div>
-        <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
-      </div>
+      <Card className="liquid-shell overflow-hidden">
+        <CardContent className="space-y-5 p-5 sm:p-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="muted">Relatórios úteis</Badge>
+            <Badge variant={reportNeedsAttention ? "danger" : "default"}>
+              {reportNeedsAttention ? "Com alerta de corte" : "Fechamento controlado"}
+            </Badge>
+            <Badge variant="muted">
+              {selectedVehicle ? `${selectedVehicle.brand} ${selectedVehicle.model}` : "Visão consolidada"}
+            </Badge>
+          </div>
+
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="space-y-2">
+              <h1 className="font-heading text-3xl font-semibold text-zinc-50">
+                Financeiro, automóvel e consolidado sem misturar tudo.
+              </h1>
+              <p className="max-w-2xl text-sm text-zinc-400">
+                Compare meses, destaque excessos, prepare um PDF para impressão e gere uma leitura
+                objetiva do que mais está pressionando o caixa.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Período</p>
+                  <p className="mt-2 text-sm text-zinc-100">{printableReport.periodLabel}</p>
+                </div>
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Maior gasto</p>
+                  <p className="mt-2 text-sm text-zinc-100">
+                    {reportLeader
+                      ? `${reportLeader.label} • ${formatCurrencyBRL(reportLeader.total)}`
+                      : "Ainda sem categoria dominante neste período."}
+                  </p>
+                </div>
+                <div className="liquid-card rounded-2xl px-4 py-3">
+                  <p className="text-[11px] uppercase tracking-[0.24em] text-zinc-500">Próxima ação</p>
+                  <p className="mt-2 text-sm text-zinc-100">
+                    {reportNeedsAttention && reportLeader
+                      ? `Reduza ${reportLeader.label.toLowerCase()} antes do próximo fechamento.`
+                      : "Use o PDF para fechar o período e compartilhar a leitura."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3 xl:min-w-[22rem]">
+              <MonthSwitcher month={selectedMonth} onChange={setSelectedMonth} />
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  className="h-11 rounded-2xl"
+                  onClick={() => window.open(printableReportHref, "_blank", "noopener,noreferrer")}
+                >
+                  Abrir relatório PDF
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="h-11 rounded-2xl"
+                  onClick={() => void handleGenerateAiReview()}
+                  disabled={aiLoading}
+                >
+                  <Sparkles className="size-4" />
+                  {aiLoading ? "Analisando..." : "Leitura IA"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <SummaryCard
@@ -396,7 +459,8 @@ export function ReportsPage() {
           <TabsTrigger value="consolidado">Consolidado</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="financeiro" className="space-y-4">
+        {activeTab === "financeiro" ? (
+          <TabsContent value="financeiro" className="space-y-4">
           <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
             <Card>
               <CardContent className="space-y-4 p-5">
@@ -582,9 +646,11 @@ export function ReportsPage() {
               </div>
             </ChartCard>
           </div>
-        </TabsContent>
+          </TabsContent>
+        ) : null}
 
-        <TabsContent value="moto" className="space-y-4">
+        {activeTab === "moto" ? (
+          <TabsContent value="moto" className="space-y-4">
           <Card>
             <CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -757,9 +823,11 @@ export function ReportsPage() {
               </div>
             </ChartCard>
           </div>
-        </TabsContent>
+          </TabsContent>
+        ) : null}
 
-        <TabsContent value="consolidado" className="space-y-4">
+        {activeTab === "consolidado" ? (
+          <TabsContent value="consolidado" className="space-y-4">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Receita total</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(consolidated.incomeTotal)}</p></CardContent></Card>
             <Card><CardContent className="p-4"><p className="text-xs uppercase tracking-[0.24em] text-zinc-500">Despesa total</p><p className="mt-2 font-heading text-2xl font-semibold text-zinc-50">{formatCurrencyBRL(consolidated.expenseTotal)}</p></CardContent></Card>
@@ -1137,7 +1205,8 @@ export function ReportsPage() {
               </div>
             </ChartCard>
           </div>
-        </TabsContent>
+          </TabsContent>
+        ) : null}
       </Tabs>
     </div>
   );

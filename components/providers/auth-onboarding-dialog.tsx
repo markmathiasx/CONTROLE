@@ -109,7 +109,8 @@ export function AuthOnboardingDialog() {
                 </p>
                 <p className="text-sm leading-6 text-zinc-300">
                   O app mantém cache local para velocidade e sincroniza sua base para continuar no
-                  celular e no desktop com a mesma conta.
+                  celular e no desktop com a mesma conta, sem misturar seus dados com os de outro
+                  login.
                 </p>
               </div>
             </div>
@@ -161,7 +162,7 @@ export function AuthOnboardingDialog() {
           ) : (
             <div className="rounded-[28px] border border-white/10 bg-white/6 p-4 text-sm leading-6 text-zinc-300">
               Nenhum backup local pendente foi encontrado. Sua conta vai começar com um workspace
-              sincronizado e a seed inicial.
+              limpo, sincronizado e pronto para receber só os seus próprios dados.
             </div>
           )}
 
