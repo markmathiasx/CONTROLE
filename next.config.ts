@@ -1,92 +1,39 @@
-import withPWAInit from "@ducanh2912/next-pwa";
 import type { NextConfig } from "next";
-
-const withPWA = withPWAInit({
-  dest: "public",
-  disable: process.env.NODE_ENV === "development",
-  cacheOnFrontEndNav: true,
-  aggressiveFrontEndNavCaching: true,
-  reloadOnOnline: true,
-  fallbacks: {
-    document: "/~offline",
-  },
-});
-
-function buildContentSecurityPolicy() {
-  const directives = [
-    "default-src 'self'",
-    "base-uri 'self'",
-    "frame-ancestors 'none'",
-    "form-action 'self'",
-    "img-src 'self' data: blob: https:",
-    "font-src 'self' data: https:",
-    "style-src 'self' 'unsafe-inline'",
-    "script-src 'self' 'unsafe-inline'",
-    "connect-src 'self' https: wss:",
-    "worker-src 'self' blob:",
-    "manifest-src 'self'",
-    "object-src 'none'",
-    "media-src 'self' data: blob:",
-  ];
-
-  return directives.join("; ");
-}
-
-const securityHeaders = [
-  {
-    key: "Content-Security-Policy",
-    value: buildContentSecurityPolicy(),
-  },
-  {
-    key: "Referrer-Policy",
-    value: "strict-origin-when-cross-origin",
-  },
-  {
-    key: "X-Frame-Options",
-    value: "DENY",
-  },
-  {
-    key: "X-Content-Type-Options",
-    value: "nosniff",
-  },
-  {
-    key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
-  },
-  {
-    key: "Cross-Origin-Opener-Policy",
-    value: "same-origin",
-  },
-  {
-    key: "Cross-Origin-Resource-Policy",
-    value: "same-site",
-  },
-  {
-    key: "Origin-Agent-Cluster",
-    value: "?1",
-  },
-  {
-    key: "X-DNS-Prefetch-Control",
-    value: "off",
-  },
-  {
-    key: "Strict-Transport-Security",
-    value: "max-age=63072000; includeSubDomains; preload",
-  },
-];
-
-const nextConfig: NextConfig = {
+const config: NextConfig = {
   reactStrictMode: true,
   typedRoutes: true,
   poweredByHeader: false,
+  async redirects() {
+    return [
+      { source: "/cadastro", destination: "/login", permanent: true },
+      { source: "/transacoes/:path*", destination: "/gastos", permanent: true },
+      { source: "/financeiro", destination: "/", permanent: true },
+    ];
+  },
   async headers() {
     return [
       {
         source: "/:path*",
-        headers: securityHeaders,
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains",
+          },
+          {
+            key: "Content-Security-Policy",
+            value:
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
+          },
+        ],
       },
     ];
   },
 };
-
-export default withPWA(nextConfig);
+export default config;

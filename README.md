@@ -1,462 +1,119 @@
-# Controle Financeiro MMSVH
+# Controle Blue v2
 
-Hub pessoal em `pt-BR` para `Financeiro`, `Moto` e `Loja`, agora com autenticação real por Supabase Auth, sincronização em nuvem por workspace e fallback local preservado. O app continua mobile-first, PWA e pronto para uso no celular e no desktop com a mesma conta.
+Aplicação privada para Mark, Andressa e Sidney. Next.js 16 + TypeScript + Tailwind 4 + componentes Shadcn/Radix + Framer Motion + Recharts + Supabase Auth/PostgreSQL.
 
-## O que existe no app
+## Funcionalidades
 
-- `Resumo`: hub consolidado com visão geral dos 3 módulos
-- `Financeiro`: saldo do mês, VR, cartão, parcelas, transações, categorias, orçamentos e relatórios
-- `Moto`: abastecimentos, manutenções, custo mensal e próximos cuidados
-- `Loja`: estoque de filamentos/insumos, produção, pedidos e lucro operacional
-- `Auth + Cloud`: login, cadastro, logout, sessão persistente, rotas protegidas, cache local e sync por workspace
+- Dashboard financeiro, receitas/despesas, filtros por mês/categoria/responsável e relatório anual.
+- Casa: R$ 80.000 de dívida, R$ 1.500 mensais, R$ 3.000 já pagos em 2 parcelas, R$ 77.000 restantes.
+- 52 parcelas restantes: 51 de R$ 1.500 + última de R$ 500. Sem juros ou multas informados.
+- Histórico com filtro por período; antecipações, edição/exclusão e projeção recalculada.
+- Progresso animado, aviso quando restarem até 12 parcelas, vencimento configurável.
+- Interface azul responsiva, navegação inferior, temas claro/escuro e estados vazios sem dados fictícios.
+- Mark: administração, permissões, desativação, troca direta de senhas e CSV.
+- Andressa (`user`): visualização e lançamento; edição/exclusão somente dos próprios registros.
+- Sidney (`viewer`): somente casa; APIs negam alterações mesmo por requisição manual.
 
-## Stack
+## 1. Criar um banco Supabase dedicado
 
-- Next.js 16 com App Router e typed routes
-- TypeScript
-- Tailwind CSS v4
-- componentes estilo shadcn/ui
-- React Hook Form + Zod
-- Zustand
-- date-fns
-- Recharts
-- Lucide Icons
-- `@ducanh2912/next-pwa`
-- Supabase Auth + Postgres + Realtime
-- Vitest
+Use um novo projeto para evitar conflito com o schema legado de `profiles` e preservar os snapshots anteriores. Não execute este SQL sobre o banco de outro aplicativo.
 
-## Arquitetura
+No SQL Editor, execute **supabase/blue/schema.sql**, uma vez. Ele cria:
 
-```text
-app/                  rotas, layouts, manifest e APIs
-components/           shell, providers, primitives e componentes compartilhados
-features/             páginas e blocos por domínio
-store/                auth store + snapshot store
-types/                tipos de domínio e formulários
-lib/                  constants, env, schemas e migrações do snapshot
-utils/                seed, cálculos, merge local->nuvem e operações
-adapters/             persistência local (IndexedDB) e nuvem (Supabase)
-services/             helpers do Supabase e lock opcional
-supabase/schema.sql   schema, trigger e RLS
-tests/                testes unitários
-```
+- `profiles`: UUID de `auth.users`, nome, username fixo, role, `is_first_login`, ativação e estado ativo.
+- `casa_controle`: valor total/parcela, meses equivalentes pagos, dia de vencimento e saldo inicial.
+- `casa_pagamentos`: valor, data, mês de referência, autor e observação.
+- `gastos`: despesas e receitas em centavos, com categoria e autor.
+- `blue_private`: sessões, limites de tentativa, auditoria e controle de concorrência das credenciais.
 
-## Modelo atual
+Valores monetários são armazenados em centavos inteiros. Colunas `valor_total`, `valor_parcela` e `valor` expõem equivalentes numéricos em reais. `data_inicio` é nula até que haja uma data real; o sistema não inventa datas para os R$ 3.000 iniciais. O vencimento começa no dia 10 e pode ser alterado pelo Mark.
 
-### Snapshot do domínio
+Em Authentication → Providers, mantenha Email habilitado e **desative Allow new users to sign up**. Desative login anônimo e provedores OAuth não utilizados. O provisionamento administrativo continua possível.
 
-Finanças, moto e loja continuam em um `workspace_snapshot` versionado com `schemaVersion = 3`.
+## 2. Configurar segredos
 
-Isso inclui:
-
-- `costCenters`: `me`, `partner`, `shared`, `moto`, `store`
-- `transactions`, `incomes`, `installments`, `budgets`, `creditCards`
-- `vehicles`, `fuelLogs`, `maintenanceLogs`
-- `filamentSpools`, `supplyItems`, `stockMovements`
-- `productionJobs`, `productionMaterialUsages`, `storeOrders`
-- `settings`, `operationalSettings` e metadados de migração/sync
-
-Snapshots antigos `v1` e `v2` são migrados automaticamente.
-
-### Camada relacional no Supabase
-
-O Supabase guarda identidade e permissão em tabelas próprias:
-
-- `profiles`
-- `workspaces`
-- `workspace_members`
-- `user_settings`
-- `workspace_snapshots`
-
-Essa camada já deixa a base pronta para futuro compartilhamento entre você e sua namorada sem reestruturar o app depois.
-
-## Multiusuário e workspace compartilhado
-
-O app continua ótimo para uso individual, mas a base agora já está pronta para crescer sem retrabalho.
-
-### O que já está pronto
-
-- um usuário pode ter mais de um `workspace`
-- cada `workspace` pode ser `pessoal` ou `compartilhado`
-- a sessão mantém um `active_workspace_id`
-- a UI já permite trocar de contexto entre workspaces
-- a criação de um workspace compartilhado já funciona para o owner atual
-
-### O que ainda fica para depois
-
-- convite por e-mail
-- aceitar/rejeitar convite
-- gestão completa de membros pela UI
-
-Isso foi intencional para manter o projeto sólido agora, sem adicionar complexidade desnecessária.
-
-## Como rodar
-
-```bash
-npm install
-npm run dev
-```
-
-Scripts:
-
-- `npm run dev`
-- `npm run build`
-- `npm run lint`
-- `npm run typecheck`
-- `npm test`
-
-## Modo local vs modo nuvem
-
-### Modo local
-
-Se as envs do Supabase não existirem, o app entra automaticamente em `modo local`.
-
-Nesse modo:
-
-- não exige login
-- persiste em `IndexedDB`
-- mantém compatibilidade com snapshot legado do `localStorage`
-- continua funcionando como PWA neste aparelho
-
-Esse modo é ideal para começar imediatamente ou usar offline, mas os dados ficam restritos ao navegador atual.
-
-### Modo nuvem
-
-Se `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `SUPABASE_SERVICE_ROLE_KEY` estiverem configuradas:
-
-- `/` vira entry pública com login/cadastro
-- o usuário autenticado recebe um workspace pessoal automaticamente
-- o app sincroniza o snapshot do workspace com o Supabase
-- o cache local continua existindo para velocidade e recuperação
-- o status visual mostra `Sincronizando`, `Sincronizado` ou `Erro de sync`
-- quando a conexão oscila, o app tenta retomar a sincronização automaticamente em foco, reconexão e intervalos curtos
-
-## Configurando Supabase
-
-### 1. Variáveis de ambiente
-
-Copie `.env.example` para `.env.local`:
+Crie `.env.local` na raiz, sem versionar:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-APP_LOCK_PIN=
+BLUE_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+BLUE_SUPABASE_SERVICE_ROLE_KEY=CHAVE_SERVICE_ROLE_DO_PROJETO
+BLUE_SITE_URL=https://controle-blue.vercel.app
 ```
 
-Regras:
+Encontre a URL e a chave server-side no painel do projeto Supabase. Nunca use `NEXT_PUBLIC_` para a chave. Nunca envie a chave pelo WhatsApp, coloque no GitHub ou inclua em screenshots.
 
-- `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY` são usados no browser
-- `SUPABASE_SERVICE_ROLE_KEY` fica só no server
-- `APP_LOCK_PIN` é opcional e adiciona uma trava extra ao deploy
+No projeto **controle** da Vercel, configure as duas primeiras variáveis em Production e Preview. `BLUE_SITE_URL` só é necessário ao provisionar convites fora do domínio padrão.
 
-### 2. SQL do projeto
+## 3. Criar as três contas iniciais
 
-No painel do Supabase, rode o conteúdo de:
-
-`supabase/schema.sql`
-
-Esse SQL cria:
-
-- `profiles`
-- `workspaces`
-- `workspace_members`
-- `user_settings`
-- `workspace_snapshots`
-- funções auxiliares de membership
-- trigger em `auth.users`
-- RLS e policies por workspace
-
-Policies aplicadas:
-
-- `profiles`: leitura e edição apenas do próprio usuário
-- `workspaces`: leitura para membros; update para owner
-- `workspace_members`: leitura do próprio membership e gestão futura pelo owner
-- `user_settings`: leitura e edição apenas da própria linha
-- `workspace_snapshots`: `select`, `insert` e `update` apenas para membros do workspace
-
-### 3. Auth
-
-O app usa `Supabase Auth`.
-
-No painel do Supabase:
-
-- ative `Email + Password`
-- para reduzir atrito no MVP, a recomendação é deixar a confirmação de e-mail desativada
-- se você preferir confirmação de e-mail, a UI já suporta esse estado
-
-### 4. Realtime
-
-Para que a atualização entre dispositivos fique mais fluida, deixe `workspace_snapshots` disponível para Realtime no projeto Supabase.
-
-## Login, cadastro e logout
-
-Rotas públicas de autenticação:
-
-- `/login`
-- `/cadastro`
-- `/logout`
-- `/api/auth/login`
-- `/api/auth/signup`
-- `/api/auth/logout`
-
-As telas públicas de autenticação mostram explicitamente se o ambiente está em `Modo local` ou `Modo nuvem`, para deixar claro quando o login está ativo ou quando o app continua rodando só no dispositivo.
-
-### Cadastro
-
-O cadastro pede:
-
-- `login` único
-- `nome de exibição`
-- `e-mail`
-- `senha`
-
-Ao cadastrar:
-
-- a senha fica somente no Supabase Auth
-- o sistema cria `profile`
-- cria um `workspace` pessoal
-- cria `workspace_member` como `owner`
-- cria `user_settings`
-
-### Login
-
-O login aceita:
-
-- `login`
-- ou `e-mail`
-
-Quando você entra com `login`, o server resolve `username -> email` com segurança e depois autentica pelo Supabase Auth.
-
-### Logout
-
-O logout encerra a sessão real, limpa o estado local da conta e volta para `/login`.
-
-## Migração dos dados locais para a conta
-
-No primeiro login em um aparelho que já tem dados locais, o app abre um onboarding com duas opções:
-
-- `Mesclar meus dados locais`
-- `Começar só com a nuvem`
-
-Esse onboarding fica bloqueando o fluxo até você decidir, para evitar ambiguidade entre o cache local do aparelho e o workspace da conta.
-
-Se você mesclar, o sistema tenta importar:
-
-- transações e receitas
-- categorias, cartões, parcelas e orçamentos
-- dados de moto
-- estoque, produção e pedidos da loja
-- configurações relevantes
-
-O merge usa dedupe por `id` e por chaves semânticas para evitar duplicação grosseira.
-
-## Como usar no celular e no PC com a mesma conta
-
-1. configure o Supabase
-2. faça login no celular
-3. faça login no desktop com a mesma conta
-4. aguarde o status `Sincronizado`
-
-O app mantém cache local em cada dispositivo, então ele continua responsivo e recupera alterações quando a conexão volta.
-
-## Módulo Financeiro
-
-Mantém a base do MVP e agora funciona por `workspace`:
-
-- saldo do mês
-- VR separado
-- cartão e parcelas futuras
-- transações por centro de custo
-- recorrências
-- categorias
-- orçamentos
-- relatórios
-
-O parser rápido continua aceitando entradas como:
-
-- `30 credito cigarro`
-- `18 vr almoço`
-- `42 pix bebida namorada`
-- `300 credito 3x mercado casal`
-
-## Módulo Moto
-
-Em `/moto`:
-
-- abastecimentos com cálculo bidirecional entre valor, litros e preço/litro
-- manutenção com categorias e recorrência simples
-- atualização do odômetro
-- custo mensal da moto
-- próximos cuidados
-
-Cada registro também impacta o consolidado financeiro pelo centro `moto`.
-
-## Módulo Loja
-
-Em `/loja`:
-
-- compra agrupada de filamentos
-- custo por rolo e por grama
-- insumos de pintura/acabamento
-- baixa automática de estoque em produção
-- desperdício em gramas e em reais
-- custo de energia, embalagem e acabamento
-- produção com custo unitário, lucro bruto e margem
-- pedidos com reconhecimento de receita ao entregar
-
-### Cadastro de filamento
-
-Em `/loja/estoque`, informe:
-
-- data
-- custo total
-- peso total em gramas
-- quantidade de rolos
-- material, cor, marca e fornecedor
-
-O sistema divide o custo, cria os rolos e registra as movimentações de estoque.
-
-### Produção
-
-Em `/loja/producao`, informe:
-
-- nome da peça
-- quantidades produzida e vendida
-- horas de impressão e acabamento
-- materiais usados
-- desperdício
-- custos extras
-- preço de venda
-
-O sistema calcula:
-
-- custo do material
-- custo do desperdício
-- custo de energia
-- custo de acabamento
-- custo de embalagem
-- custo total
-- custo unitário
-- lucro bruto
-- margem
-
-## Configurações
-
-Em `/configuracoes` você pode editar:
-
-- perfil do usuário
-- nome do workspace ativo
-- criação de novos workspaces pessoais ou compartilhados
-- troca de contexto entre workspaces
-- salário mensal
-- VR mensal
-- dia de salário e VR
-- tema
-- centros ativos
-- energia por kWh
-- potência média da impressora
-- custo fixo por produção
-- custo manual por hora
-- export/import de backup
-- reset para seed
-
-Quando estiver em nuvem, o tema e o onboarding ficam vinculados ao usuário em `user_settings`.
-
-### Troca de contexto
-
-Com Supabase ativo, o menu da conta e a tela de configurações mostram os workspaces disponíveis.
-
-Você pode:
-
-- alternar entre workspaces sem sair da conta
-- manter um espaço pessoal e outro compartilhado
-- renomear o workspace ativo
-- criar um workspace compartilhado e deixar a estrutura pronta para adicionar sua namorada depois
-
-## Backup e recuperação
-
-O app exporta e importa o snapshot inteiro em JSON.
-
-Fluxos:
-
-- `Exportar backup`
-- `Importar backup`
-- `Resetar para seed`
-
-Mesmo no modo nuvem, o cache local continua existindo para recuperação e fluidez.
-
-## PWA
-
-O projeto continua instalável:
-
-- `manifest` em `app/manifest.ts`
-- service worker gerado por `next-pwa`
-- fallback offline em `/~offline`
-- navegação inferior mobile
-- FAB com speed-dial
-
-## Deploy na Vercel
-
-### Variáveis
-
-No projeto da Vercel, configure:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `APP_LOCK_PIN` opcional
-
-Cloud mode só é ativado quando as 3 variáveis do Supabase estiverem presentes. Se faltar qualquer uma delas, o app volta automaticamente para o modo local.
-
-### Checklist final de deploy
-
-Antes de publicar ou redeployar:
-
-- rode `npm run typecheck`
-- rode `npm run lint`
-- rode `npm test`
-- rode `npm run build`
-- confirme as envs da Vercel
-- confirme o SQL mais recente em `supabase/schema.sql`
-- valide login, troca de workspace e sync em dois dispositivos
-
-### Redeploy
-
-Depois de ajustar envs:
-
-1. faça commit
-2. envie para o repositório
-3. redeploy na Vercel
-
-Se você mudar schema ou auth no Supabase, é recomendado fazer um novo deploy para garantir alinhamento do build com as envs.
-
-## Segurança
-
-- `service_role` nunca vai para o browser
-- login por username é resolvido no server
-- senhas ficam só no Supabase Auth
-- `workspace_snapshots` usam RLS
-- tabelas de perfil/workspace também usam RLS
-- o fallback local continua funcionando sem segredos
-
-## Acessibilidade e UX
-
-Nesta fase o app também foi polido para uso real:
-
-- labels explícitos nos campos críticos
-- ações de conta e workspace com foco melhor para mobile
-- troca de contexto sem esconder o estado ativo
-- estados de modo local, nuvem e sincronização visíveis
-- estrutura pronta para evolução posterior sem quebrar o uso atual
-
-## Validação executada
-
-Os comandos abaixo passaram nesta versão:
+Requer Node.js 20+ (Vercel configurada com Node 24):
 
 ```bash
+npm ci
+npm run provision
+```
+
+O script `scripts/provision-blue.mjs` usa exclusivamente Supabase Auth Admin para criar as contas. As senhas iniciais e endereços internos são aleatórios; não são divulgados. Os endereços servem como identificadores privados de autenticação, não como caixas de e-mail.
+
+O script grava um convite de uso único do Mark em `.blue-mark-activation.txt`. Abra esse link em seu navegador em até 7 dias; ele conduz a `/auth/setup-password`. Crie sua senha definitiva (mínimo 10 caracteres, máximo 72 bytes UTF-8). Ao salvar, `is_first_login` muda para false e uma sessão privada é iniciada.
+
+Depois de entrar como Mark, abra **Configurações → Pessoas e permissões**. Gere um convite para Andressa e outro para Sidney. Cada pessoa abre seu convite e cria a própria senha. Depois disso, o login usa somente o nome de usuário e a senha pessoal.
+
+Executar o provisionamento novamente preserva senhas e permissões existentes. Se Mark ainda não ativou, o script substitui seu convite anterior por um novo. Exclua o arquivo privado após usar o link.
+
+Se você optar por criar as contas manualmente em Supabase Auth, use o UUID de cada conta ao inserir os perfis com usernames exatos e roles corretos. O script é recomendado porque também cria os convites com hash e expiração e evita divulgar credenciais temporárias.
+
+## 4. Senhas e sessão
+
+Supabase Auth valida e armazena as senhas. O servidor entrega ao navegador apenas um identificador aleatório em cookie HttpOnly, Secure em produção, SameSite=Strict. JWTs e refresh tokens do Supabase não são entregues ao browser; ficam no servidor. Isso mantém a alteração de senha exclusivamente nos endpoints controlados da aplicação.
+
+O login verifica o perfil. Se `is_first_login=true`, o acesso aos dados é bloqueado e o usuário é enviado para `/auth/setup-password`. Convites permitem chegar diretamente à tela sem compartilhar uma senha temporária. Tokens no fragmento do link não são enviados em Referer; são removidos da barra após a leitura.
+
+Depois da ativação, somente o **UUID do perfil reservado `mark`** pode chamar `/api/admin/reset-password`. A API confirma a identidade de uma sessão válida, role e o vínculo do UUID ao username imutável. A nova senha é aplicada por `auth.admin.updateUserById`; todas as sessões do usuário são revogadas. Não há link de recuperação pública ou de alteração própria para Andressa e Sidney. Mark também pode alterar sua própria senha, encerrando sua sessão.
+
+As sessões expiram em 30 dias. Permissões e desativação são consultadas novamente no banco a cada chamada; não dependem de claims antigas. Sair remove a sessão no banco e o cookie.
+
+## 5. Segurança de dados
+
+RLS habilitada em todas as tabelas. Perfis não permitem autoatribuição de papel. Sem privilégios de escrita direta para anon/authenticated: pagamentos passam por uma RPC transacional server-side, protegida por sessão e autorização. As policies de INSERT especificam `admin/user` e autoria, sem conceder um caminho para contornar saldo, auditoria e bloqueio de concorrência.
+
+- Nenhum fallback local aberto quando falta configuração.
+- Nenhuma sincronização de snapshots integrais que permitiria apagar dados de outra pessoa.
+- Bloqueio global da casa (`FOR UPDATE`) serializa pagamentos e mudanças de configuração, evitando saldo negativo.
+- IDs estáveis tornam um novo envio do mesmo pagamento idempotente.
+- Lease de credenciais impede dois pedidos simultâneos de ativação/reset.
+- Limite de tentativas de login persistido no PostgreSQL, válido em múltiplas instâncias da Vercel.
+- CSV neutraliza descrições que poderiam virar fórmulas.
+- Nenhum dado financeiro persistido em localStorage; somente a preferência de tema.
+- O service worker anterior é removido; respostas privadas têm `Cache-Control: no-store`.
+
+A auditoria registra alterações, autor e identificador. Não armazena senhas ou tokens em texto puro.
+
+## 6. Desenvolvimento e verificações
+
+```bash
+npm run dev
 npm run typecheck
 npm run lint
 npm test
 npm run build
 ```
+
+Rotas: `/`, `/dashboard`, `/gastos`, `/casa`, `/relatorios`, `/configuracoes`, `/login`, `/auth/setup-password`.
+
+As APIs antigas de cadastro e sincronização foram removidas. `/cadastro` redireciona para login e `/transacoes` para gastos. A branch `main` anterior preserva o aplicativo legado e seu histórico; nenhum snapshot é importado automaticamente, pois a autoria de registros antigos não foi informada.
+
+Os módulos antigos de Moto/Loja não fazem parte da navegação desta reconstrução. Seus snapshots anteriores não são apagados. Para migrar finanças antigas, exporte o backup anterior e faça uma migração explícita com confirmação de autoria.
+
+## 7. Publicar mantendo o domínio
+
+1. Configure o banco, execute o SQL e provisione as três contas.
+2. Configure as variáveis no projeto Vercel **controle**.
+3. Valide a branch `v2-chernobyl` em um deployment Preview.
+4. Verifique primeiro login, permissões e pagamento usando contas reais.
+5. Promova o deployment validado para Production ou integre a branch à branch de produção.
+6. O projeto existente mantém `controle-blue.vercel.app`.
+
+Rollback: restaure o deployment anterior da Vercel. As novas tabelas são independentes dos snapshots legados. Não elimine dados anteriores para aplicar a reconstrução.
+
+Notificações por e-mail não fazem parte desta versão: não há e-mails reais dos três titulares ou serviço de envio configurado. Redefinição de senha usa a API administrativa direta solicitada.

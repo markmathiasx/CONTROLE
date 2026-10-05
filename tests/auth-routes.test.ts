@@ -1,168 +1,81 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { describe, it, expect, vi, beforeEach } from "vitest";
 const mocks = vi.hoisted(() => ({
-  getSupabaseRouteHandlerClient: vi.fn(),
-  getSupabaseAdminClient: vi.fn(),
+  rpc: vi.fn(),
+  authenticate: vi.fn(),
+  resetPassword: vi.fn(),
 }));
-
-vi.mock("@/services/supabase/server", () => ({
-  getSupabaseRouteHandlerClient: mocks.getSupabaseRouteHandlerClient,
+vi.mock("@/lib/blue/server", () => ({
+  ...mocks,
+  cookieName: "controle_blue_session",
 }));
-
-vi.mock("@/services/supabase/admin", () => ({
-  getSupabaseAdminClient: mocks.getSupabaseAdminClient,
-}));
-
-import { POST as loginPost } from "@/app/api/auth/login/route";
-import { POST as logoutPost } from "@/app/api/auth/logout/route";
-import { POST as signupPost } from "@/app/api/auth/signup/route";
-
-function createRouteClient() {
-  return {
-    auth: {
-      signInWithPassword: vi.fn().mockResolvedValue({ error: null }),
-      signUp: vi.fn().mockResolvedValue({ data: { session: { access_token: "token" } }, error: null }),
-      signOut: vi.fn().mockResolvedValue({ error: null }),
-    },
-  };
-}
-
-function createAdminClient(result: { data: unknown; error: unknown }) {
-  return {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn().mockResolvedValue(result),
-        })),
-      })),
-    })),
-  };
-}
-
-describe("auth routes", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+import { GET, POST } from "@/app/api/blue/route";
+import { POST as reset } from "@/app/api/admin/reset-password/route";
+const req = (body: unknown, origin = "http://localhost") =>
+  new Request("http://localhost/api/blue", {
+    method: "POST",
+    headers: { origin, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-
-  it("faz login por e-mail sem alterar a senha enviada", async () => {
-    const routeClient = createRouteClient();
-    mocks.getSupabaseRouteHandlerClient.mockResolvedValue(routeClient);
-
-    const response = await loginPost(
-      new Request("http://localhost/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({
-          identifier: "mark@example.com",
-          password: "  senha com espacos  ",
-        }),
-      }),
+beforeEach(() => vi.clearAllMocks());
+describe("Blue HTTP boundary", () => {
+  it("rejects cross-origin credential mutations", async () => {
+    expect(
+      (
+        await POST(
+          req({ action: "login", payload: {} }, "https://attacker.test"),
+        )
+      ).status,
+    ).toBe(403);
+    expect(mocks.authenticate).not.toHaveBeenCalled();
+  });
+  it("does not expose a public signup or privileged RPC action", async () => {
+    expect(
+      (
+        await POST(
+          req({
+            action: "session_issue",
+            payload: { verified_user_id: "mark" },
+          }),
+        )
+      ).status,
+    ).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("puts the session in HttpOnly cookies rather than JSON", async () => {
+    mocks.authenticate.mockResolvedValue({ ok: true, token: "secret" });
+    const r = await POST(
+      req({ action: "login", payload: { username: "mark", password: "test" } }),
     );
-
-    expect(response.status).toBe(200);
-    expect(routeClient.auth.signInWithPassword).toHaveBeenCalledWith({
-      email: "mark@example.com",
-      password: "  senha com espacos  ",
+    expect(await r.json()).toEqual({ ok: true });
+    expect(r.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(r.headers.get("set-cookie")).toContain("SameSite=strict");
+  });
+  it("blocks collaborator CSV export", async () => {
+    mocks.rpc.mockResolvedValue({ ok: true, user: { username: "andressa" } });
+    expect(
+      (await GET(new Request("http://localhost/api/blue?export=csv"))).status,
+    ).toBe(403);
+  });
+  it("propagates the authoritative admin reset denial", async () => {
+    mocks.resetPassword.mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: "Somente Mark.",
     });
+    expect(
+      (
+        await reset(
+          req({ payload: { username: "sidney", password: "new-password" } }),
+        )
+      ).status,
+    ).toBe(403);
   });
-
-  it("resolve username para email no server antes de autenticar", async () => {
-    const routeClient = createRouteClient();
-    mocks.getSupabaseRouteHandlerClient.mockResolvedValue(routeClient);
-    mocks.getSupabaseAdminClient.mockReturnValue(
-      createAdminClient({ data: { email: "mark@example.com" }, error: null }),
-    );
-
-    const response = await loginPost(
-      new Request("http://localhost/api/auth/login", {
-        method: "POST",
-        body: JSON.stringify({
-          identifier: "mark.login",
-          password: "senha123",
-        }),
-      }),
-    );
-
-    expect(response.status).toBe(200);
-    expect(routeClient.auth.signInWithPassword).toHaveBeenCalledWith({
-      email: "mark@example.com",
-      password: "senha123",
-    });
-  });
-
-  it("retorna signup com confirmação pendente quando o Supabase não cria sessão", async () => {
-    const routeClient = createRouteClient();
-    routeClient.auth.signUp.mockResolvedValue({
-      data: { session: null },
-      error: null,
-    });
-    mocks.getSupabaseRouteHandlerClient.mockResolvedValue(routeClient);
-    mocks.getSupabaseAdminClient.mockReturnValue(
-      createAdminClient({ data: null, error: null }),
-    );
-
-    const response = await signupPost(
-      new Request("http://localhost/api/auth/signup", {
-        method: "POST",
-        body: JSON.stringify({
-          username: "mark.login",
-          displayName: "Mark",
-          email: "mark@example.com",
-          password: "  senha123  ",
-        }),
-      }),
-    );
-
-    const payload = (await response.json()) as { ok?: boolean; needsEmailConfirmation?: boolean };
-
-    expect(response.status).toBe(200);
-    expect(payload).toEqual({ ok: true, needsEmailConfirmation: true });
-    expect(routeClient.auth.signUp).toHaveBeenCalledWith({
-      email: "mark@example.com",
-      password: "  senha123  ",
-      options: {
-        data: {
-          username: "mark.login",
-          display_name: "Mark",
-        },
-      },
-    });
-  });
-
-  it("faz logout mesmo quando o Supabase não está disponível", async () => {
-    mocks.getSupabaseRouteHandlerClient.mockResolvedValue(null);
-
-    const response = await logoutPost(
-      new Request("http://localhost/api/auth/logout", {
-        method: "POST",
-      }),
-    );
-    const payload = (await response.json()) as { ok?: boolean };
-
-    expect(response.status).toBe(200);
-    expect(payload.ok).toBe(true);
-  });
-
-  it("bloqueia login quando a origem da requisição não confere", async () => {
-    const routeClient = createRouteClient();
-    mocks.getSupabaseRouteHandlerClient.mockResolvedValue(routeClient);
-
-    const response = await loginPost(
-      new Request("http://localhost/api/auth/login", {
-        method: "POST",
-        headers: {
-          origin: "https://evil.example",
-        },
-        body: JSON.stringify({
-          identifier: "mark@example.com",
-          password: "senha123",
-        }),
-      }),
-    );
-
-    const payload = (await response.json()) as { ok?: boolean; error?: string };
-
-    expect(response.status).toBe(403);
-    expect(payload.ok).toBe(false);
-    expect(routeClient.auth.signInWithPassword).not.toHaveBeenCalled();
+  it("keeps private financial responses out of caches", async () => {
+    mocks.rpc.mockResolvedValue({ ok: false, status: 401 });
+    expect(
+      (await GET(new Request("http://localhost/api/blue"))).headers.get(
+        "cache-control",
+      ),
+    ).toContain("no-store");
   });
 });
