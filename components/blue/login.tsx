@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { parseInvitation } from "@/lib/blue/planning";
 import {
   ArrowRight,
   ShieldCheck,
@@ -12,31 +13,28 @@ export function Login({
   configured,
   setup = false,
   initialUser = "mark",
+  hasSetupSession = false,
 }: {
   configured: boolean;
   setup?: boolean;
   initialUser?: string;
+  hasSetupSession?: boolean;
 }) {
   const [username, setUsername] = useState(initialUser),
     [password, setPassword] = useState(""),
     [confirmation, setConfirmation] = useState(""),
     [activation, setActivation] = useState(""),
+    [inviteUser, setInviteUser] = useState(""),
     [first, setFirst] = useState(setup),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [visible, setVisible] = useState(false);
   useEffect(() => {
-    const hash = new URLSearchParams(location.hash.slice(1));
-    const token = hash.get("activation");
-    if (token && !setup) {
-      location.replace("/auth/setup-password" + location.hash);
-      return;
-    }
-    if (token) {
-      setActivation(token);
+    const parsed = parseInvitation(location.href);
+    if (parsed) {
+      setActivation(parsed.activation);
       setFirst(true);
-      const user = hash.get("user");
-      if (user) setUsername(user);
+      if (parsed.username) { setUsername(parsed.username); setInviteUser(parsed.username); }
       history.replaceState(null, "", setup ? "/auth/setup-password" : "/login");
     }
   }, [setup]);
@@ -76,7 +74,7 @@ export function Login({
           <span className="brand-icon">
             <Wallet size={24} />
           </span>
-          controle<span className="brand-blue">blue</span>
+          <span className="brand-text">Controle Financeiro<strong>MMSVH</strong></span>
         </a>
         <div className="story-copy">
           <span className="eyebrow">MENOS PREOCUPAÇÃO. MAIS FUTURO.</span>
@@ -100,7 +98,7 @@ export function Login({
           </div>
         </div>
         <span className="story-footer">
-          CONTROLE BLUE · FINANÇAS COM PROPÓSITO
+          MMSVH · FINANÇAS COM PROPÓSITO
         </span>
       </section>
       <section className="login-side">
@@ -120,22 +118,28 @@ export function Login({
               <select
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                disabled={busy}
+                disabled={busy || !!inviteUser}
               >
                 <option value="mark">Mark</option>
                 <option value="andressa">Andressa</option>
                 <option value="sidney">Sidney</option>
               </select>
             </label>
-            {first && (!setup || activation) && (
+            {first && !hasSetupSession && (
               <label>
-                Código de ativação
+                Convite individual de primeiro acesso
                 <input
                   value={activation}
-                  onChange={(e) => setActivation(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const parsed = parseInvitation(value);
+                    setActivation(parsed?.activation ?? value.trim());
+                    if (parsed?.username) { setUsername(parsed.username); setInviteUser(parsed.username); }
+                    else setInviteUser("");
+                  }}
                   autoComplete="off"
                   required
-                  placeholder="Convite individual enviado pelo Mark"
+                  placeholder="Cole o link completo ou o código enviado pelo Mark"
                 />
               </label>
             )}
@@ -191,7 +195,7 @@ export function Login({
                 ? "Aguarde…"
                 : first
                   ? "Criar senha e entrar"
-                  : "Entrar no Controle Blue"}
+                  : "Entrar no MMSVH"}
               <ArrowRight size={18} />
             </button>
           </form>

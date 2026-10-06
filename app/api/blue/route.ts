@@ -66,7 +66,7 @@ export async function GET(request: Request) {
           headers: {
             ...headers,
             "Content-Type": "text/csv; charset=utf-8",
-            "Content-Disposition": 'attachment; filename="controle-blue.csv"',
+            "Content-Disposition": 'attachment; filename="controle-financeiro-mmsvh.csv"',
           },
         },
       );
@@ -117,6 +117,8 @@ export async function POST(request: Request) {
       "settings",
       "user",
       "invite",
+      "budget_save", "budget_delete", "bill_save", "bill_delete", "bill_pay",
+      "goal_save", "goal_delete", "goal_deposit",
     ];
     if (
       !allowed.includes(body.action) ||

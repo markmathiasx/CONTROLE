@@ -18,7 +18,7 @@ export default function Icon() {
         justifyContent: "center",
         backgroundColor: "#030712",
         backgroundImage:
-          "radial-gradient(circle at top, rgba(16,185,129,0.32), transparent 55%), radial-gradient(circle at bottom right, rgba(8,145,178,0.22), transparent 35%)",
+          "radial-gradient(circle at top, rgba(37,99,235,0.32), transparent 55%), radial-gradient(circle at bottom right, rgba(99,102,241,0.22), transparent 35%)",
       }}
     >
       <div
@@ -30,14 +30,14 @@ export default function Icon() {
           alignItems: "center",
           justifyContent: "center",
           background:
-            "linear-gradient(180deg, rgba(16,185,129,0.22), rgba(8,145,178,0.16))",
+            "linear-gradient(180deg, rgba(37,99,235,0.22), rgba(99,102,241,0.16))",
           border: "1px solid rgba(255,255,255,0.12)",
           color: "#ecfeff",
-          fontSize: 160,
+          fontSize: 76,
           fontWeight: 700,
         }}
       >
-        C
+        MMSVH
       </div>
     </div>,
     size,

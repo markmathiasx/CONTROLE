@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Controle Blue · Sua vida em equilíbrio",
+  title: "Controle Financeiro MMSVH · Sua vida em equilíbrio",
   description: "Finanças compartilhadas e o caminho até a sua casa quitada.",
   manifest: "/manifest.webmanifest",
   robots: { index: false, follow: false },

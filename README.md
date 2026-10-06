@@ -1,4 +1,19 @@
-# Controle Blue v2
+# Controle Financeiro MMSVH
+
+## Atualização MMSVH: planejamento e primeiro acesso
+
+O domínio permanece `controle-blue.vercel.app`; a identidade exibida passa a **Controle Financeiro MMSVH**.
+
+Para uma instalação nova, aplique `supabase/blue/schema.sql` e depois `supabase/blue/planning.sql`. Para atualizar o banco existente, aplique **somente planning.sql**. A migração é aditiva e preserva lançamentos, contas Auth, senhas e sessões existentes.
+
+- `/planejamento`: limites mensais por categoria, contas a pagar/receber, assinaturas recorrentes, compras parceladas em até 60 meses, baixa que cria um lançamento uma única vez e metas com aportes rastreados.
+- Painel: limite diário indicativo calculado pela renda registrada menos gastos, pagamentos da casa, contas pendentes até o fim do mês (incluindo atrasadas) e o restante da parcela da casa. Receitas previstas ficam separadas; não são consideradas dinheiro recebido. Não é o saldo bancário real.
+- Limites compartilhados: somente Mark configura. Andressa cria e altera suas próprias contas e metas; Mark administra tudo. Sidney continua vendo somente a casa. Os novos dados ficam em tabelas privadas com RLS e RPC de sessão autorizada.
+- Parcelamentos dividem centavos sem perder valores e usam o último dia do mês quando necessário. Assinaturas geram o próximo mês ao dar baixa. A parcela da casa é registrada exclusivamente no módulo da casa, evitando duplicar despesa e pagamento.
+- Metas acompanham valores que o usuário informa já ter guardado, sem movimentar bancos ou criar despesas automáticas. Não há Open Finance, importação bancária ou IA remota nesta versão.
+- Convites são individuais, duram 7 dias e abrem diretamente `/auth/setup-password#user=...&activation=...`. Um novo convite cancela **somente** o anterior da mesma pessoa. A tela também aceita colar o link completo, fixa o destinatário do link e remove o token do histórico do navegador. Não use o convite do Mark para Andressa ou Sidney.
+
+Depois de entrar, Mark gera os convites em Configurações. Somente usuários ainda não ativados recebem convites de criação de senha; após a ativação, apenas Mark altera senhas pelo painel.
 
 Aplicação privada para Mark, Andressa e Sidney. Next.js 16 + TypeScript + Tailwind 4 + componentes Shadcn/Radix + Framer Motion + Recharts + Supabase Auth/PostgreSQL.
 

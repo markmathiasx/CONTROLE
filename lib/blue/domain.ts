@@ -1,3 +1,4 @@
+import type { PlanningData } from "./planning";
 export type Role = "admin" | "user" | "viewer";
 export type BlueUser = {
   id: string;
@@ -38,6 +39,7 @@ export type BlueData = {
   entries: Entry[];
   payments: HousePayment[];
   settings: HouseSettings;
+  planning?: PlanningData;
 };
 export const categories = [
   "Alimentação",

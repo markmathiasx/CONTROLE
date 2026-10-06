@@ -4,7 +4,7 @@ import { BlueApp } from "@/components/blue/app";
 export async function BluePage({
   tab,
 }: {
-  tab: "dashboard" | "gastos" | "casa" | "configuracoes" | "relatorios";
+  tab: "dashboard" | "gastos" | "casa" | "configuracoes" | "relatorios" | "planejamento";
 }) {
   let data;
   try {

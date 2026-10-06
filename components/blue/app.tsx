@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { HouseProgressCard } from "./house-progress-card";
+import { PlanningPanel, SpendingCoach } from "./planning";
 import {
   Wallet,
   LayoutDashboard,
@@ -24,6 +25,7 @@ import {
   Check,
   Copy,
   PieChart as ChartIcon,
+  Target,
 } from "lucide-react";
 import {
   BarChart,
@@ -50,7 +52,7 @@ import {
   roleLabels,
   todayBR,
 } from "@/lib/blue/domain";
-type Tab = "dashboard" | "gastos" | "casa" | "configuracoes" | "relatorios";
+type Tab = "dashboard" | "gastos" | "casa" | "configuracoes" | "relatorios" | "planejamento";
 type Draft = {
   type: "entry" | "payment";
   id: string;
@@ -74,6 +76,7 @@ const links = [
   { href: "/", tab: "dashboard", label: "Visão geral", icon: LayoutDashboard },
   { href: "/gastos", tab: "gastos", label: "Movimentações", icon: Wallet },
   { href: "/casa", tab: "casa", label: "Nossa casa", icon: Home },
+  { href: "/planejamento", tab: "planejamento", label: "Planejamento", icon: Target },
   {
     href: "/relatorios",
     tab: "relatorios",
@@ -98,6 +101,7 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
   const [data, setData] = useState(initial),
     [month, setMonth] = useState(todayBR().slice(0, 7)),
     [category, setCategory] = useState(""),
+    [search, setSearch] = useState(""),
     [responsible, setResponsible] = useState(""),
     [draft, setDraft] = useState<Draft | null>(null),
     [busy, setBusy] = useState(false),
@@ -108,7 +112,7 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
     [connected, setConnected] = useState(true),
     [lastSync, setLastSync] = useState(Date.now()),
     [period, setPeriod] = useState({ from: "", to: "" }),
-    [invite, setInvite] = useState(""),
+    [invites, setInvites] = useState<Record<string,string>>({}),
     [adminPassword, setAdminPassword] = useState(""),
     [adminUser, setAdminUser] = useState("andressa"),
     [settings, setSettings] = useState({
@@ -271,6 +275,7 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
   const filtered = monthEntries.filter(
     (e) =>
       (!category || e.category === category) &&
+      (!search || e.description.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))) &&
       (!responsible || e.user_id === responsible),
   );
   const income = monthEntries
@@ -395,7 +400,7 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
           <span className="brand-icon">
             <Wallet size={24} />
           </span>
-          controle<span className="brand-blue">blue</span>
+          <span className="brand-text">Controle Financeiro<strong>MMSVH</strong></span>
         </Link>
         <div className="workspace">
           <span className="workspace-icon">
@@ -524,7 +529,7 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
               </p>
             </div>
             <div className="heading-actions">
-              {(tab === "dashboard" || tab === "gastos") && (
+              {(tab === "dashboard" || tab === "gastos" || tab === "planejamento") && (
                 <input
                   type="month"
                   value={month}
@@ -552,6 +557,8 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
               confira a conexão antes de lançar.
             </div>
           )}
+          {tab === "dashboard" && editor && <SpendingCoach data={data} month={month}/>}
+          {tab === "planejamento" && editor && <PlanningPanel data={data} month={month} busy={busy} mutate={mutate}/>}
           {debt.nearPayoff && (
             <div className="milestone">
               <Check size={20} />
@@ -696,6 +703,7 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
                 <span className="count">{filtered.length} lançamentos</span>
               </div>
               <div className="filters">
+                <label>Buscar descrição<input type="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Mercado, internet, salário…"/></label>
                 <label>
                   Categoria
                   <select
@@ -1025,7 +1033,7 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
                           }
                         >
                           <option value="viewer">Somente leitura</option>
-                          <option value="editor">Leitura e lançamento</option>
+                          <option value="user">Leitura e lançamento</option>
                         </select>
                       )}
                       {u.username !== "mark" && (
@@ -1046,36 +1054,36 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
                       {u.first_login && (
                         <button
                           className="secondary"
-                          disabled={busy}
+                          disabled={busy || !u.active}
                           onClick={async () => {
+                            if (!confirm("Gerar um convite individual para " + u.name + "? O link anterior dessa pessoa deixará de funcionar.")) return;
                             const r = await mutate(
                               "invite",
                               { username: u.username },
                               "Convite criado. Válido por 7 dias.",
                             );
                             if (r)
-                              setInvite(
-                                location.origin +
-                                  "/login#user=" +
+                              setInvites(previous => ({...previous,[r.username]: location.origin +
+                                  "/auth/setup-password#user=" +
                                   r.username +
                                   "&activation=" +
-                                  r.activation,
-                              );
+                                  r.activation}));
                           }}
                         >
-                          Gerar convite
+                          Gerar convite de {u.name}
                         </button>
                       )}
                     </div>
                   ))}
                 </div>
-                {invite && (
-                  <div className="invite-box">
-                    <strong>Compartilhe somente com o titular da conta</strong>
+                {Object.entries(invites).map(([username,invite]) => (
+                  <div className="invite-box" key={username}>
+                    <strong>Convite exclusivo de {data.users.find(u=>u.username===username)?.name} · válido por 7 dias</strong>
+                    <p>Compartilhe o link completo somente com essa pessoa. Um novo convite para ela cancela este link.</p>
                     <input
                       value={invite}
                       readOnly
-                      aria-label="Link de ativação"
+                      aria-label={"Link de ativação de " + username}
                     />
                     <button
                       className="secondary"
@@ -1091,10 +1099,10 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
                       }
                     >
                       <Copy size={16} />
-                      Copiar convite
+                    Copiar convite de {username}
                     </button>
                   </div>
-                )}
+                ))}
                 <p className="subtle">
                   Andressa pode editar/excluir seus próprios registros. Sidney
                   começa em leitura. Só Mark administra contas.
@@ -1235,7 +1243,7 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
           )}
         </main>
         <footer className="main-footer">
-          <span>Controle Blue</span>
+          <span>Controle Financeiro MMSVH</span>
           <span>Planejar. Compartilhar. Conquistar.</span>
         </footer>
       </div>
@@ -1262,6 +1270,8 @@ export function BlueApp({ initial, tab }: { initial: BlueData; tab: Tab }) {
                       ? "Casa"
                       : l.tab === "configuracoes"
                         ? "Ajustes"
+                        : l.tab === "planejamento"
+                          ? "Planejar"
                         : "Relatórios"}
               </span>
             </Link>

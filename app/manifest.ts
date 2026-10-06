@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Controle Blue",
-    short_name: "Blue",
+    name: "Controle Financeiro MMSVH",
+    short_name: "MMSVH",
     start_url: "/",
     display: "standalone",
     background_color: "#f5f7fb",

@@ -21,7 +21,8 @@ export async function proxy(request: NextRequest) {
       headers: {
         "Content-Type": "application/json",
         apikey: key,
-        Authorization: `Bearer ${key}`,
+        ...(key.startsWith("eyJ") ? { Authorization: `Bearer ${key}` } : {}),
+        "User-Agent": "MMSVH-Server/3.0",
       },
       body: JSON.stringify({
         action: "session",
