@@ -1,80 +1,71 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
-
-const mocks = vi.hoisted(() => ({
-  createServerClient: vi.fn(),
-  getSupabasePublicEnv: vi.fn(),
-  hasSupabaseEnv: vi.fn(),
-}));
-
-vi.mock("@supabase/ssr", () => ({
-  createServerClient: mocks.createServerClient,
-}));
-
-vi.mock("@/lib/env", () => ({
-  getSupabasePublicEnv: mocks.getSupabasePublicEnv,
-  hasSupabaseEnv: mocks.hasSupabaseEnv,
-}));
-
-vi.mock("@/services/lock", () => ({
-  getPinCookieName: () => "controle-lock",
-  verifyPinCookieValue: () => true,
-}));
-
 import { proxy } from "@/proxy";
-
-function createSupabaseClient(user: { id: string } | null) {
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({
-        data: { user },
-      }),
-    },
-  };
-}
-
-describe("proxy auth guard", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.hasSupabaseEnv.mockReturnValue(true);
-    mocks.getSupabasePublicEnv.mockReturnValue({
-      url: "https://example.supabase.co",
-      anonKey: "anon-key",
-    });
+const request = (path: string, cookie = true) =>
+  new NextRequest("http://localhost" + path, {
+    headers: cookie ? { cookie: "controle_blue_session=test" } : {},
   });
-
-  it("mantém o app acessível em modo local sem exigir login", async () => {
-    mocks.hasSupabaseEnv.mockReturnValue(false);
-
-    const response = await proxy(new NextRequest("http://localhost/financeiro"));
-
-    expect(response.status).toBe(200);
-    expect(response.headers.get("location")).toBeNull();
-    expect(mocks.createServerClient).not.toHaveBeenCalled();
+beforeEach(() => {
+  vi.stubEnv("BLUE_SUPABASE_URL", "https://example.supabase.co");
+  vi.stubEnv("BLUE_SUPABASE_SERVICE_ROLE_KEY", "test");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+});
+describe("Blue navigation authorization", () => {
+  it("requires login even when the database is absent", async () => {
+    vi.stubEnv("BLUE_SUPABASE_URL", "");
+    expect((await proxy(request("/"))).headers.get("location")).toBe(
+      "http://localhost/login",
+    );
   });
-
-  it("redireciona áreas internas para /login quando a nuvem está ativa e não há sessão", async () => {
-    mocks.createServerClient.mockReturnValue(createSupabaseClient(null));
-
-    const response = await proxy(new NextRequest("http://localhost/financeiro?mes=2026-03"));
-    const location = response.headers.get("location");
-
-    expect(response.status).toBeGreaterThanOrEqual(300);
-    expect(location).not.toBeNull();
-
-    const redirectUrl = new URL(location!);
-    expect(redirectUrl.pathname).toBe("/login");
-    expect(redirectUrl.searchParams.get("next")).toBe("/financeiro?mes=2026-03");
+  it("rejects a forged cookie after database verification", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ json: async () => ({ ok: false }) }),
+    );
+    expect((await proxy(request("/casa"))).headers.get("location")).toContain(
+      "/login",
+    );
   });
-
-  it("redireciona usuário autenticado para / ao abrir /login", async () => {
-    mocks.createServerClient.mockReturnValue(createSupabaseClient({ id: "user_1" }));
-
-    const response = await proxy(new NextRequest("http://localhost/login"));
-    const location = response.headers.get("location");
-
-    expect(response.status).toBeGreaterThanOrEqual(300);
-    expect(location).not.toBeNull();
-    expect(new URL(location!).pathname).toBe("/");
+  it("forces first login into password setup", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          json: async () => ({ ok: true, first_login: true }),
+        }),
+    );
+    expect((await proxy(request("/"))).headers.get("location")).toContain(
+      "/auth/setup-password",
+    );
+  });
+  it("redirects viewers away from editing routes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          json: async () => ({ ok: true, role: "viewer", username: "sidney" }),
+        }),
+    );
+    expect((await proxy(request("/gastos"))).headers.get("location")).toContain(
+      "/dashboard",
+    );
+  });
+  it("hides administration from Andressa", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValue({
+          json: async () => ({ ok: true, role: "user", username: "andressa" }),
+        }),
+    );
+    expect(
+      (await proxy(request("/configuracoes"))).headers.get("location"),
+    ).toContain("/dashboard");
   });
 });

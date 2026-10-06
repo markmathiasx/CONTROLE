@@ -1,166 +1,54 @@
-import { createServerClient } from "@supabase/ssr";
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
-
-import { getSupabasePublicEnv, hasSupabaseEnv } from "@/lib/env";
-import { getPinCookieName, verifyPinCookieValue } from "@/services/lock";
-
-const basePublicPrefixes = [
-  "/unlock",
-  "/api/unlock",
-  "/api/auth",
-  "/icon",
-  "/apple-icon",
-  "/~offline",
-  "/_next",
-];
-
-const authPublicPrefixes = ["/login", "/cadastro", "/logout"];
-const authRedirectPrefixes = ["/login", "/cadastro"];
-
-const protectedPrefixes = [
-  "/financeiro",
-  "/transacoes",
-  "/cartoes",
-  "/parcelas",
-  "/categorias",
-  "/orcamentos",
-  "/relatorios",
-  "/configuracoes",
-  "/moto",
-  "/loja",
-  "/api/sync",
-] as const;
-
-function isPrefixed(pathname: string, prefixes: readonly string[]) {
-  return prefixes.some(
-    (allowedPath) => pathname === allowedPath || pathname.startsWith(`${allowedPath}/`),
-  );
-}
-
-function requiresInternalAuth(pathname: string) {
-  if (pathname === "/") {
-    return false;
-  }
-
-  return isPrefixed(pathname, protectedPrefixes);
-}
-
-function requiresPin(pathname: string, hasCloud: boolean) {
-  if (!process.env.APP_LOCK_PIN) {
-    return false;
-  }
-
-  if (isPrefixed(pathname, basePublicPrefixes)) {
-    return false;
-  }
-
-  if (hasCloud) {
-    if (pathname === "/" || isPrefixed(pathname, authPublicPrefixes)) {
-      return false;
-    }
-
-    return requiresInternalAuth(pathname);
-  }
-
-  return true;
-}
-
+import { NextRequest, NextResponse } from "next/server";
 export async function proxy(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
-  const hasCloud = hasSupabaseEnv();
-  const publicEnv = getSupabasePublicEnv();
-
-  if (requiresPin(pathname, hasCloud)) {
-    const cookie = request.cookies.get(getPinCookieName())?.value;
-    if (!verifyPinCookieValue(cookie)) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/unlock";
-      return NextResponse.redirect(url);
-    }
-  }
-
-  if (!hasCloud) {
+  const path = request.nextUrl.pathname;
+  if (
+    path === "/login" ||
+    path === "/auth/setup-password" ||
+    path.startsWith("/api/") ||
+    path.startsWith("/icon") ||
+    path.startsWith("/apple-icon")
+  )
     return NextResponse.next();
-  }
-
-  if (pathname === "/" || isPrefixed(pathname, [...basePublicPrefixes, ...authPublicPrefixes])) {
-    const response = NextResponse.next();
-    if (!publicEnv) {
-      return response;
-    }
-    const supabase = createServerClient(
-      publicEnv.url,
-      publicEnv.anonKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll().map(({ name, value }) => ({ name, value }));
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              request.cookies.set(name, value);
-              response.cookies.set(name, value, options);
-            });
-          },
-        },
+  const token = request.cookies.get("controle_blue_session")?.value;
+  const url = process.env.BLUE_SUPABASE_URL,
+    key = process.env.BLUE_SUPABASE_SERVICE_ROLE_KEY;
+  if (!token || !url || !key)
+    return NextResponse.redirect(new URL("/login", request.url));
+  try {
+    const r = await fetch(`${url}/rest/v1/rpc/blue_rpc`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: key,
+        Authorization: `Bearer ${key}`,
       },
-    );
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user && isPrefixed(pathname, authRedirectPrefixes)) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/";
-      url.search = "";
-      return NextResponse.redirect(url);
-    }
-
-    return response;
-  }
-
-  if (!requiresInternalAuth(pathname)) {
+      body: JSON.stringify({
+        action: "session",
+        payload: {},
+        session_token: token,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const session = await r.json();
+    if (!session.ok)
+      return NextResponse.redirect(new URL("/login", request.url));
+    if (session.first_login)
+      return NextResponse.redirect(
+        new URL("/auth/setup-password", request.url),
+      );
+    if (
+      session.role === "viewer" &&
+      path !== "/casa" &&
+      path !== "/dashboard" &&
+      path !== "/"
+    )
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    if (path.startsWith("/configuracoes") && session.username !== "mark")
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     return NextResponse.next();
+  } catch {
+    return NextResponse.redirect(new URL("/login", request.url));
   }
-
-  const response = NextResponse.next();
-  if (!publicEnv) {
-    return response;
-  }
-  const supabase = createServerClient(
-    publicEnv.url,
-    publicEnv.anonKey,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll().map(({ name, value }) => ({ name, value }));
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value);
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    },
-  );
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (user) {
-    return response;
-  }
-
-  const url = request.nextUrl.clone();
-  url.pathname = "/login";
-  url.searchParams.set("next", `${pathname}${request.nextUrl.search}`);
-  return NextResponse.redirect(url);
 }
-
-export const config = {
-  matcher: ["/((?!.*\\..*).*)"],
-};
+export const config = { matcher: ["/((?!_next|.*\\..*).*)"] };

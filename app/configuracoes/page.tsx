@@ -1,5 +1,5 @@
-import { SettingsPage } from "@/features/settings/settings-page";
-
-export default function SettingsRoute() {
-  return <SettingsPage />;
+import { BluePage } from "@/lib/blue/page";
+export const dynamic = "force-dynamic";
+export default function Page() {
+  return <BluePage tab="configuracoes" />;
 }
